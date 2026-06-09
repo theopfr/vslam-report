@@ -1,0 +1,328 @@
+---
+title: "Verwandte Methoden"
+subtitle: "Taxonomie, Vergleich und Einordnung von SLAM-Algorithmen"
+date: today
+bibliography: references.bib
+---
+
+```{=html}
+<div class="hero-banner" style="padding:2.5rem 2rem;">
+  <h1 style="font-size:2.2rem;">Verwandte Methoden</h1>
+  <p class="subtitle">Von EKF-SLAM bis Neural SLAM – Vergleich, Vor- und Nachteile</p>
+</div>
+```
+
+## 1. Taxonomie von SLAM-Algorithmen
+
+SLAM-Verfahren lassen sich anhand mehrerer Dimensionen klassifizieren:
+
+```{python}
+#| label: fig-taxonomie
+#| fig-cap: "Taxonomie der SLAM-Methoden. ORB-SLAM3 ist feature-basiert und graph-basiert."
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyBboxPatch
+
+fig, ax = plt.subplots(figsize=(11, 6))
+ax.axis('off')
+ax.set_xlim(0, 12); ax.set_ylim(0, 7)
+
+def box(ax, x, y, w, h, label, color, fontsize=9):
+    rect = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.1",
+                           facecolor=color, edgecolor='white', linewidth=2, alpha=0.9)
+    ax.add_patch(rect)
+    ax.text(x + w/2, y + h/2, label, ha='center', va='center',
+            fontsize=fontsize, fontweight='bold', color='white', wrap=True)
+
+# Root
+box(ax, 4.5, 6.0, 3.0, 0.7, 'SLAM', '#202124', 11)
+
+# Level 1
+box(ax, 1.0, 4.7, 3.5, 0.7, 'Filter-basiert', '#9c27b0')
+box(ax, 7.5, 4.7, 3.5, 0.7, 'Graph-basiert', '#1a73e8')
+
+# Level 2 – Filter
+box(ax, 0.2, 3.2, 1.8, 0.7, 'EKF-SLAM', '#ba68c8')
+box(ax, 2.2, 3.2, 2.2, 0.7, 'FastSLAM\n(Partikel)', '#ab47bc')
+
+# Level 2 – Graph
+box(ax, 5.0, 3.2, 2.0, 0.7, 'Feature-\nbasiert', '#42a5f5')
+box(ax, 7.3, 3.2, 2.0, 0.7, 'Direkt', '#1e88e5')
+box(ax, 9.5, 3.2, 2.2, 0.7, 'Semi-Direkt\n/ Neural', '#1565c0')
+
+# Level 3 – Feature-based
+box(ax, 4.5, 1.7, 1.5, 0.7, 'MonoSLAM', '#90caf9')
+box(ax, 6.2, 1.7, 1.3, 0.7, 'PTAM', '#90caf9')
+box(ax, 5.2, 0.3, 1.8, 0.9, 'ORB-SLAM\n1 / 2 / 3 ★', '#0d47a1', 8)
+
+# Level 3 – Direct
+box(ax, 7.1, 1.7, 1.4, 0.7, 'LSD-SLAM', '#64b5f6')
+box(ax, 8.7, 1.7, 1.2, 0.7, 'DSO', '#64b5f6')
+
+# Level 3 – Neural
+box(ax, 9.5, 1.7, 2.2, 0.7, 'DROID-SLAM\nNeRF-SLAM', '#1565c0', 8)
+
+# Arrows
+arrow_props = dict(arrowstyle='->', color='#555', lw=1.5)
+connections = [
+    ((6.0, 6.0), (2.75, 5.4)),
+    ((6.0, 6.0), (9.25, 5.4)),
+    ((2.75, 4.7), (1.1, 3.9)),
+    ((2.75, 4.7), (3.3, 3.9)),
+    ((9.25, 4.7), (6.0, 3.9)),
+    ((9.25, 4.7), (8.3, 3.9)),
+    ((9.25, 4.7), (10.6, 3.9)),
+    ((6.0, 3.2), (5.25, 2.4)),
+    ((6.0, 3.2), (6.85, 2.4)),
+    ((5.6, 1.7), (6.1, 1.2)),
+    ((6.85, 1.7), (6.4, 1.2)),
+]
+for src, dst in connections:
+    ax.annotate('', xy=dst, xytext=src, arrowprops=arrow_props)
+
+ax.set_title('Taxonomie von SLAM-Verfahren', fontsize=13, fontweight='bold', pad=10)
+plt.tight_layout()
+plt.show()
+```
+
+## 2. Filter-basierte Methoden
+
+### 2.1 EKF-SLAM
+
+Der **Extended Kalman Filter** war der erste erfolgreiche SLAM-Ansatz [@smith1986]. Der Zustandsvektor enthält alle Kameraposen und Landmarke:
+
+$$
+\mathbf{x} = [\mathbf{T}^\top, \mathbf{P}_1^\top, \mathbf{P}_2^\top, \ldots, \mathbf{P}_n^\top]^\top
+$$
+
+**Hauptproblem:** Die Kovarianzmatrix wächst quadratisch mit der Anzahl der Landmarke: $O(n^2)$ Speicher und $O(n^2)$ Rechenzeit pro Schritt.
+
+### 2.2 FastSLAM
+
+**FastSLAM** [@montemerlo2002] trennt die Pose-Schätzung (Partikelfilter) von der Landmarken-Schätzung (pro Partikel $M$ unabhängige EKF):
+
+$$
+p(\mathbf{x}_{1:t}, \mathbf{m} \mid \mathbf{z}_{1:t}, \mathbf{u}_{1:t}) \approx \sum_{k=1}^K w^{(k)} \delta(\mathbf{x}_{1:t} - \mathbf{x}_{1:t}^{(k)}) \prod_{j=1}^M p(\mathbf{m}_j \mid \mathbf{x}_{1:t}^{(k)}, \mathbf{z}_{1:t})
+$$
+
+Komplexität reduziert auf $O(M \log N)$ – aber immer noch schlecht für große Karten.
+
+## 3. Direkte Methoden
+
+### 3.1 LSD-SLAM (Large-Scale Direct Monocular SLAM)
+
+LSD-SLAM [@engel2014] nutzt **photometrischen Fehler** statt Features:
+
+$$
+E(\boldsymbol{\xi}) = \sum_{\mathbf{p} \in \Omega} \left( I_1(\mathbf{p}) - I_2\!\left(\omega(\mathbf{p}, D_1(\mathbf{p}), \boldsymbol{\xi})\right) \right)^2
+$$
+
+**Vorteile:** Nutzt alle Bildinformationen (nicht nur Keypoints), robuster bei texturarmen Flächen.
+**Nachteile:** Empfindlich gegenüber Beleuchtungsänderungen, hoher Rechenaufwand.
+
+### 3.2 DSO (Direct Sparse Odometry)
+
+DSO [@engel2018] kombiniert direkten Ansatz mit einem fotometrischen Kameramodell und optimiert gleichzeitig Pose, Struktur und **Kalibrierungsparameter** (Vignettierung, Gamma):
+
+$$
+E_\text{photo} = \sum_{\mathbf{p}} w_\mathbf{p} \left\| \frac{I_j[p']-b_j}{e^{a_j}} - \frac{I_i[\mathbf{p}]-b_i}{e^{a_i}} \right\|_\gamma^2
+$$
+
+## 4. Umfassender Methodenvergleich
+
+```{=html}
+<table class="comparison-table">
+<thead>
+<tr>
+  <th>System</th>
+  <th>Jahr</th>
+  <th>Typ</th>
+  <th>Kamera</th>
+  <th>Genauigkeit</th>
+  <th>Geschwindigkeit</th>
+  <th>Loop Closure</th>
+  <th>Skala</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>MonoSLAM</strong></td><td>2003</td><td>Filter</td><td>Mono</td>
+  <td><span class="badge-bad">Gering</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+  <td><span class="badge-bad">Nein</span></td>
+  <td><span class="badge-bad">Klein</span></td>
+</tr>
+<tr>
+  <td><strong>PTAM</strong></td><td>2007</td><td>Feature</td><td>Mono</td>
+  <td><span class="badge-ok">Mittel</span></td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-bad">Nein</span></td>
+  <td><span class="badge-bad">Klein</span></td>
+</tr>
+<tr>
+  <td><strong>LSD-SLAM</strong></td><td>2014</td><td>Direkt</td><td>Mono</td>
+  <td><span class="badge-ok">Mittel</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+  <td><span class="badge-good">Ja</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+</tr>
+<tr>
+  <td><strong>ORB-SLAM</strong></td><td>2015</td><td>Feature</td><td>Mono</td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-good">Ja</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+</tr>
+<tr>
+  <td><strong>DSO</strong></td><td>2018</td><td>Direkt</td><td>Mono</td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+  <td><span class="badge-bad">Nein</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+</tr>
+<tr>
+  <td><strong>VINS-Mono</strong></td><td>2018</td><td>Feature+IMU</td><td>Mono+IMU</td>
+  <td><span class="badge-good">Sehr hoch</span></td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-good">Ja</span></td>
+  <td><span class="badge-good">Groß</span></td>
+</tr>
+<tr>
+  <td><strong>ORB-SLAM2</strong></td><td>2017</td><td>Feature</td><td>Mono/Stereo/RGBD</td>
+  <td><span class="badge-good">Sehr hoch</span></td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-good">Ja</span></td>
+  <td><span class="badge-good">Groß</span></td>
+</tr>
+<tr style="background:#e8f0fe; font-weight:bold;">
+  <td><strong>ORB-SLAM3 ★</strong></td><td>2021</td><td>Feature+IMU</td><td>Alle Modi</td>
+  <td><span class="badge-good">Sehr hoch</span></td>
+  <td><span class="badge-good">Hoch</span></td>
+  <td><span class="badge-good">Ja (+Merge)</span></td>
+  <td><span class="badge-good">Sehr groß</span></td>
+</tr>
+<tr>
+  <td><strong>DROID-SLAM</strong></td><td>2021</td><td>Deep Learning</td><td>Mono/Stereo</td>
+  <td><span class="badge-good">Sehr hoch</span></td>
+  <td><span class="badge-bad">Niedrig</span></td>
+  <td><span class="badge-ok">Begrenzt</span></td>
+  <td><span class="badge-ok">Mittel</span></td>
+</tr>
+</tbody>
+</table>
+```
+
+## 5. Quantitativer Vergleich auf TUM-Benchmark
+
+```{python}
+#| label: fig-benchmark
+#| fig-cap: "ATE RMSE [cm] auf dem TUM RGB-D Benchmark (fr1/desk Sequenz). Niedrigere Werte = besser. (Werte aus publizierten Arbeiten.)"
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+systeme = ['MonoSLAM', 'PTAM', 'ElasticFusion', 'LSD-SLAM', 'ORB-SLAM2', 'VINS-Mono', 'ORB-SLAM3']
+ate = [38.5, 24.8, 2.53, 8.93, 1.60, 2.22, 1.41]
+colors = ['#9c27b0', '#9c27b0', '#34a853', '#1e88e5', '#1a73e8', '#ff9800', '#0d47a1']
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+bars = ax.bar(systeme, ate, color=colors, width=0.6,
+              edgecolor='white', linewidth=1.5)
+
+for bar, val in zip(bars, ate):
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+            f'{val:.2f}', ha='center', fontsize=9, fontweight='bold')
+
+ax.set_ylabel('ATE RMSE [cm] ↓', fontsize=10)
+ax.set_title('TUM RGB-D Benchmark – Absolute Trajectory Error', fontsize=12, fontweight='bold')
+ax.grid(axis='y', alpha=0.3, linestyle='--')
+ax.set_ylim(0, 44)
+
+# Highlight ORB-SLAM3
+bars[-1].set_edgecolor('#fbbc04')
+bars[-1].set_linewidth(3)
+
+import matplotlib.patches as mpatches
+legend_elements = [
+    mpatches.Patch(color='#9c27b0', label='Filter-basiert'),
+    mpatches.Patch(color='#1e88e5', label='Direkt'),
+    mpatches.Patch(color='#1a73e8', label='Feature-basiert'),
+    mpatches.Patch(color='#ff9800', label='Feature + IMU'),
+    mpatches.Patch(color='#0d47a1', label='ORB-SLAM3 (Best)'),
+]
+ax.legend(handles=legend_elements, fontsize=8, loc='upper right')
+plt.tight_layout()
+plt.show()
+```
+
+## 6. Feature-basiert vs. Direkt: Gegenüberstellung
+
+```{python}
+#| label: fig-radar
+#| fig-cap: "Radar-Diagramm: Vergleich Feature-basierter (ORB-SLAM3) vs. Direkter (DSO) Ansatz"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+kategorien = ['Genauigkeit', 'Geschwindigkeit', 'Robustheit\n(Licht)', 'Robustheit\n(Textur)',
+              'Loop Closure', 'Skalierbarkeit', 'Echtzeit']
+N = len(kategorien)
+
+orb_werte   = [9.0, 8.5, 7.5, 8.0, 9.5, 9.0, 8.5]
+dso_werte   = [8.5, 6.5, 5.5, 9.0, 4.0, 7.0, 7.0]
+
+angles = np.linspace(0, 2*np.pi, N, endpoint=False).tolist()
+angles += angles[:1]
+orb_werte += orb_werte[:1]
+dso_werte += dso_werte[:1]
+cat_plot = kategorien + [kategorien[0]]
+
+fig, ax = plt.subplots(figsize=(7, 6), subplot_kw=dict(polar=True))
+ax.set_theta_offset(np.pi / 2)
+ax.set_theta_direction(-1)
+
+ax.plot(angles, orb_werte, '#1a73e8', lw=2.5, label='ORB-SLAM3 (Feature)')
+ax.fill(angles, orb_werte, '#1a73e8', alpha=0.15)
+ax.plot(angles, dso_werte, '#34a853', lw=2.5, linestyle='--', label='DSO (Direkt)')
+ax.fill(angles, dso_werte, '#34a853', alpha=0.1)
+
+ax.set_xticks(angles[:-1])
+ax.set_xticklabels(kategorien, fontsize=9)
+ax.set_ylim(0, 10)
+ax.set_yticks([2, 4, 6, 8, 10])
+ax.set_yticklabels(['2', '4', '6', '8', '10'], fontsize=7)
+ax.grid(True, alpha=0.3)
+
+ax.set_title('Feature-basiert vs. Direkt', pad=20, fontsize=12, fontweight='bold')
+ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=9)
+plt.tight_layout()
+plt.show()
+```
+
+## 7. Deep-Learning-basierte Ansätze
+
+Neueste Methoden wie **DROID-SLAM** [@teed2021] nutzen **Dense Bundle Adjustment Layers** – differenzierbare BA-Schichten, die end-to-end trainiert werden:
+
+$$
+\Delta\boldsymbol{\tau}, \Delta\mathbf{d} = \text{BA}\!\left(\mathbf{G}, \boldsymbol{\tau}, \mathbf{d}, \Omega\right)
+$$
+
+**Vorteile:** Sehr robust gegen schwierige Beleuchtung, motion blur; generalisiert besser auf neue Szenen.
+**Nachteile:** Benötigt GPU, langsamer als ORB-SLAM3 auf CPU, weniger interpretierbares Modell.
+
+| Aspekt | ORB-SLAM3 | DROID-SLAM |
+|---|---|---|
+| Hardware | CPU reicht | GPU nötig |
+| Laufzeit (30Hz) | Ja | Eingeschränkt (~10 Hz) |
+| Offline-Training | Nicht nötig | Erforderlich |
+| Explainability | Hoch | Gering (Black Box) |
+| In texturarmen Szenen | Mittelmäßig | Gut |
+
+## Literatur
+
+::: {#refs}
+:::

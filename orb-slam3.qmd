@@ -1,0 +1,392 @@
+---
+title: "ORB-SLAM3 im Detail"
+subtitle: "Architektur, Komponenten und Funktionsprinzip"
+date: today
+bibliography: references.bib
+---
+
+```{=html}
+<div class="hero-banner" style="padding:2.5rem 2rem;">
+  <h1 style="font-size:2.2rem;">ORB-SLAM3</h1>
+  <p class="subtitle">Der vollständigste Open-Source V-SLAM – Monocular · Stereo · RGB-D · IMU</p>
+  <div class="badge-row">
+    <span class="hero-badge">📄 Campos et al. 2021</span>
+    <span class="hero-badge">⭐ 10k+ GitHub Stars</span>
+    <span class="hero-badge">🏆 State of the Art (Feature-basiert)</span>
+  </div>
+</div>
+```
+
+## 1. Überblick
+
+ORB-SLAM3 [@campos2021] ist die dritte Generation des ORB-SLAM-Systems. Es unterstützt **monokulare, Stereo- und RGB-D-Kameras**, wahlweise kombiniert mit einer **Inertial Measurement Unit (IMU)**. Das System baut auf den Vorgängern auf und führt folgende Neuerungen ein:
+
+```{=html}
+<div class="info-grid">
+  <div class="info-card">
+    <div class="card-icon">🗺️</div>
+    <h4>Atlas: Multi-Map</h4>
+    <p>Mehrere unverbundene Karten können gleichzeitig verwaltet und bei erkannten Loop-Closures fusioniert werden.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">📡</div>
+    <h4>IMU-Integration</h4>
+    <p>Tightly-coupled Sensor-Fusion mit IMU ermöglicht auch in texturarmen Umgebungen präzises Tracking.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">🔁</div>
+    <h4>Map Merging</h4>
+    <p>Karten-Fusion beim Wiedererkennen bereits kartierter Bereiche auch nach langer Unterbrechung.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">⚡</div>
+    <h4>Improved Loop Closing</h4>
+    <p>Verbesserter DBoW3-basierter Place Recognition mit Verfication durch geometrisches Konsistenz-Check.</p>
+  </div>
+</div>
+```
+
+## 2. Systemarchitektur
+
+ORB-SLAM3 besteht aus drei parallelen **Threads** und einem zentralen **Atlas**-System:
+
+```{=html}
+<div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin:1.5rem 0;">
+  <div class="arch-box arch-tracking" style="flex:1; min-width:160px;">
+    📷 <strong>Tracking Thread</strong><br>
+    <small>Schätzt Kamerapose<br>für jeden Frame</small>
+  </div>
+  <div style="display:flex;align-items:center;font-size:1.5rem;color:#aaa;">⟷</div>
+  <div class="arch-box arch-atlas" style="flex:1; min-width:160px;">
+    🗂️ <strong>Atlas</strong><br>
+    <small>Multi-Map Storage<br>(aktiv + inaktiv)</small>
+  </div>
+  <div style="display:flex;align-items:center;font-size:1.5rem;color:#aaa;">⟷</div>
+  <div class="arch-box arch-mapping" style="flex:1; min-width:160px;">
+    🏗️ <strong>Local Mapping</strong><br>
+    <small>Keyframe-Verwaltung<br>Lokaler BA</small>
+  </div>
+  <div style="display:flex;align-items:center;font-size:1.5rem;color:#aaa;">⟷</div>
+  <div class="arch-box arch-loop" style="flex:1; min-width:160px;">
+    🔄 <strong>Loop Closing</strong><br>
+    <small>Place Recognition<br>Pose Graph Opt.</small>
+  </div>
+</div>
+```
+
+### 2.1 Thread 1: Tracking
+
+Der **Tracking-Thread** läuft auf **jedem Frame** und hat zwei Betriebsmodi:
+
+**a) Tracking mit bekannter Karte:**
+```
+Eingabe: Neuer Frame + aktive Karte
+1. ORB-Feature Extraktion (N Keypoints)
+2. Initiale Pose-Schätzung via Constant Velocity Model oder
+   Relocalization (falls Tracking verloren)
+3. Guided Feature Search: Projektiere Karten-Landmarke auf Bild
+4. Pose-Refinement via PnP + RANSAC
+5. Lokale Map Projection: Mehr Matches in Nachbarschaft
+6. Entscheide: Neuer Keyframe?
+```
+
+**b) Initialisierung:**
+
+Bei Monocular: **Homographie + Fundamental Matrix** werden parallel auf denselben Features geschätzt. Der Gewinner wird durch ein Scoring-Verfahren ausgewählt:
+
+$$
+R_H = \frac{S_H}{S_H + S_F}, \quad
+\begin{cases} H \text{ wenn } R_H > 0.45 \\ F \text{ sonst} \end{cases}
+$$
+
+### 2.2 Thread 2: Local Mapping
+
+Der **Local-Mapping-Thread** verarbeitet neue Keyframes und verfeinert die lokale Karte:
+
+1. **Keyframe Culling**: Entfernt redundante Keyframes (>90 % der Features bereits in anderen KFs)
+2. **New Map Point Creation**: Triangulierung neuer 3D-Punkte aus Stereo-Paaren
+3. **Local Bundle Adjustment**: Optimiert die letzten $K$ Keyframes + alle sichtbaren Landmarke
+
+```{python}
+#| label: fig-local-ba
+#| fig-cap: "Local Bundle Adjustment: Nur Keyframes (blau) und Punkte (rot) im lokalen Fenster werden optimiert; fixed Frames (grau) liefern Randbedingungen"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+np.random.seed(3)
+fig, ax = plt.subplots(figsize=(10, 5))
+
+# Simulated keyframe trajectory
+n_kf = 8
+kf_x = np.linspace(0, 14, n_kf)
+kf_y = np.sin(kf_x * 0.5) * 1.2
+local_window = [3, 4, 5, 6]  # indices in local window
+
+# Draw connections
+for i in range(n_kf - 1):
+    ax.plot(kf_x[i:i+2], kf_y[i:i+2], 'k-', lw=1.5, zorder=2)
+
+# Map points
+n_mp = 35
+mp_x = np.random.uniform(1, 13, n_mp)
+mp_y = np.random.uniform(2, 6, n_mp)
+
+# Fixed vs local
+for i, (x, y) in enumerate(zip(kf_x, kf_y)):
+    is_local = i in local_window
+    color = '#1a73e8' if is_local else '#9e9e9e'
+    marker = '^'
+    ax.scatter(x, y, s=200, c=color, marker=marker, zorder=5, edgecolors='white', linewidths=1.5)
+    label = f'KF{i+1}' if i not in [0, 1, 2] else f'KF{i+1} (fixed)'
+    ax.annotate(label, (x, y), xytext=(0, 12), textcoords='offset points',
+                ha='center', fontsize=8, color=color, fontweight='bold')
+
+# Local window highlight
+lx = kf_x[local_window[0]]
+rx = kf_x[local_window[-1]]
+ax.axvspan(lx - 0.5, rx + 0.5, alpha=0.08, color='#1a73e8', label='Lokales Optimierungsfenster')
+
+# Map points and observation lines
+for i, (mx, my) in enumerate(zip(mp_x, mp_y)):
+    is_local_pt = any(abs(mx - kf_x[k]) < 2.5 for k in local_window)
+    c = '#ea4335' if is_local_pt else '#bdbdbd'
+    ax.scatter(mx, my, s=25, c=c, zorder=4, alpha=0.8)
+    if is_local_pt and i % 3 == 0:
+        for k in local_window[:2]:
+            ax.plot([kf_x[k], mx], [kf_y[k], my], color='#ea4335', alpha=0.12, lw=0.8)
+
+legend_elements = [
+    mpatches.Patch(color='#1a73e8', label='Optimierte Keyframes (lokal)'),
+    mpatches.Patch(color='#9e9e9e', label='Fixierte Keyframes (Randbedingung)'),
+    mpatches.Patch(color='#ea4335', label='Lokale 3D-Punkte'),
+    mpatches.Patch(color='#bdbdbd', label='Globale 3D-Punkte (nicht opt.)'),
+]
+ax.legend(handles=legend_elements, loc='upper left', fontsize=8)
+ax.set_xlim(-0.8, 15); ax.set_ylim(-1.5, 7)
+ax.set_xlabel('X [m]'); ax.set_ylabel('Y [m]')
+ax.set_title('Local Bundle Adjustment in ORB-SLAM3', fontweight='bold', fontsize=12)
+ax.grid(alpha=0.25, linestyle='--')
+plt.tight_layout()
+plt.show()
+```
+
+### 2.3 Thread 3: Loop Closing & Map Merging
+
+Der **Loop-Closing-Thread** erkennt Ort-Wiederholungen und korrigiert den Drift:
+
+**Loop Closing Pipeline:**
+```
+1. Candidate Detection: DBoW3 Ähnlichkeitssuche → Top-K Kandidaten
+2. Consistency Check: Geometrische Verifikation mit Essential Matrix
+3. SE(3) Constraint: Berechne relative Transformation zum alten KF
+4. Pose Graph Optimization: g²o minimiert globale Fehlerakkumulation
+5. Map Merging (falls anderer Atlas-Bereich): Fuse Karten
+6. Full Bundle Adjustment (async): Verfeinere gesamte Karte
+```
+
+## 3. Das Atlas-System
+
+Das **Atlas** ist das Herzstück von ORB-SLAM3. Es verwaltet eine **Sammlung von Karten** (Maps):
+
+- **Aktive Karte**: Die aktuell vom Tracking verwendete Karte
+- **Inaktive Karten**: Früher erstellte Karten (z. B. nach Tracking-Verlust)
+
+```{python}
+#| label: fig-atlas
+#| fig-cap: "Atlas Multi-Map-System: Tracking-Verlust erzeugt neue Karte; Loop Closure fusioniert diese wieder"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyArrowPatch
+
+np.random.seed(7)
+fig, ax = plt.subplots(figsize=(11, 5.5))
+
+# Map 1 trajectory
+t1 = np.linspace(0, 4, 50)
+x1 = t1
+y1 = np.sin(t1) * 0.8 + 3
+
+# Map 2 trajectory (after tracking loss)
+t2 = np.linspace(0, 3, 40)
+x2 = t2 + 4.5
+y2 = np.cos(t2) * 0.6 + 1.5
+
+# After merge
+t3 = np.linspace(0, 2, 30)
+x3 = t3 + 7.2
+y3 = np.sin(t3 + 1) * 0.5 + 3
+
+# Map points
+mp1_x = np.random.uniform(0, 4, 20); mp1_y = np.random.uniform(1.5, 4.5, 20)
+mp2_x = np.random.uniform(4.5, 7.5, 15); mp2_y = np.random.uniform(0.5, 3.0, 15)
+
+ax.fill_between(x1, y1 - 0.4, y1 + 0.4, alpha=0.1, color='#1a73e8')
+ax.fill_between(x2, y2 - 0.3, y2 + 0.3, alpha=0.1, color='#34a853')
+ax.fill_between(x3, y3 - 0.25, y3 + 0.25, alpha=0.1, color='#ea4335')
+
+ax.plot(x1, y1, '#1a73e8', lw=2.5, label='Map 1 (aktiv)')
+ax.plot(x2, y2, '#34a853', lw=2.5, label='Map 2 (nach Tracking-Verlust)')
+ax.plot(x3, y3, '#ea4335', lw=2.5, label='Map 3 (nach Fusion)')
+
+ax.scatter(mp1_x, mp1_y, s=18, c='#1a73e8', alpha=0.5)
+ax.scatter(mp2_x, mp2_y, s=18, c='#34a853', alpha=0.5)
+
+# Tracking loss annotation
+ax.annotate('Tracking-\nVerlust', xy=(4.1, 2.8), xytext=(3.2, 4.8),
+            arrowprops=dict(arrowstyle='->', color='#ea4335', lw=2),
+            fontsize=9, color='#ea4335', fontweight='bold', ha='center')
+
+# Loop closure annotation
+ax.annotate('Loop\nClosure!', xy=(7.2, 3.0), xytext=(8.2, 4.8),
+            arrowprops=dict(arrowstyle='->', color='#fbbc04', lw=2),
+            fontsize=9, color='#a37b00', fontweight='bold', ha='center')
+
+ax.annotate('', xy=(4.5, 2.2), xytext=(4.0, 2.8),
+            arrowprops=dict(arrowstyle='->', color='gray', lw=1.5, linestyle='dashed'))
+
+ax.set_xlim(-0.5, 10); ax.set_ylim(0, 6)
+ax.set_xlabel('X [m]'); ax.set_ylabel('Y [m]')
+ax.set_title('ORB-SLAM3 Atlas: Multi-Map-Verwaltung', fontweight='bold', fontsize=12)
+ax.legend(fontsize=9, loc='upper right')
+ax.grid(alpha=0.2)
+plt.tight_layout()
+plt.show()
+```
+
+## 4. IMU-Integration (Visual-Inertial SLAM)
+
+ORB-SLAM3 integriert eine **IMU (Inertial Measurement Unit)** als **Tightly-Coupled**-System:
+
+### IMU Pre-Integration
+
+Anstatt rohe IMU-Messungen zu akkumulieren, nutzt ORB-SLAM3 **Pre-Integration** zwischen Keyframes:
+
+$$
+\Delta\mathbf{R}_{ij} = \prod_{k=i}^{j-1} \text{Exp}\!\left((\tilde{\boldsymbol{\omega}}_k - \mathbf{b}^\omega_k)\Delta t\right)
+$$
+
+$$
+\Delta\mathbf{v}_{ij} = \sum_{k=i}^{j-1} \Delta\mathbf{R}_{ik}(\tilde{\mathbf{a}}_k - \mathbf{b}^a_k)\Delta t
+$$
+
+Die IMU-Biases $\mathbf{b}^a$ (Beschleunigung) und $\mathbf{b}^\omega$ (Winkelgeschwindigkeit) werden mitoptimiert.
+
+### Vorteile der IMU-Integration
+
+```{python}
+#| label: fig-imu
+#| fig-cap: "Vergleich: Rein visuelle vs. Visual-Inertial Trajektorien-Schätzung (simuliert). IMU reduziert Drift drastisch."
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(12)
+t = np.linspace(0, 10, 200)
+
+# Ground truth
+gt_x = t * 0.5 + np.sin(t * 0.8) * 0.5
+gt_y = np.cos(t * 0.6) * 1.5 + t * 0.2
+
+# Visual only (drifts over time)
+drift = np.cumsum(np.random.randn(len(t)) * 0.04)
+drift_y = np.cumsum(np.random.randn(len(t)) * 0.03)
+vis_x = gt_x + drift
+vis_y = gt_y + drift_y
+
+# Visual-Inertial (much less drift)
+small_drift = np.cumsum(np.random.randn(len(t)) * 0.008)
+small_drift_y = np.cumsum(np.random.randn(len(t)) * 0.006)
+vi_x = gt_x + small_drift
+vi_y = gt_y + small_drift_y
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+# ── 2D trajectory ──
+ax = axes[0]
+ax.plot(gt_x, gt_y, 'k-', lw=2.5, label='Ground Truth', zorder=5)
+ax.plot(vis_x, vis_y, '#ea4335', lw=1.8, alpha=0.85, label='Visual-Only (SLAM)', linestyle='--')
+ax.plot(vi_x, vi_y, '#1a73e8', lw=1.8, alpha=0.9, label='Visual-Inertial (IMU)')
+ax.scatter([gt_x[0]], [gt_y[0]], s=100, c='black', zorder=6, marker='o')
+ax.text(gt_x[0] - 0.2, gt_y[0] + 0.2, 'Start', fontsize=8)
+ax.set_title('Trajektorien-Vergleich (2D)', fontweight='bold')
+ax.legend(fontsize=8); ax.grid(alpha=0.3)
+ax.set_xlabel('X [m]'); ax.set_ylabel('Y [m]')
+
+# ── ATE over time ──
+ax2 = axes[1]
+ate_vis = np.sqrt((vis_x - gt_x)**2 + (vis_y - gt_y)**2)
+ate_vi  = np.sqrt((vi_x - gt_x)**2 + (vi_y - gt_y)**2)
+ax2.plot(t, ate_vis, '#ea4335', lw=2, label=f'Visual-Only (Ø {ate_vis.mean():.2f}m)')
+ax2.plot(t, ate_vi,  '#1a73e8', lw=2, label=f'Visual-Inertial (Ø {ate_vi.mean():.2f}m)')
+ax2.fill_between(t, 0, ate_vis, alpha=0.1, color='#ea4335')
+ax2.fill_between(t, 0, ate_vi,  alpha=0.1, color='#1a73e8')
+ax2.set_title('Absoluter Trajektorienfehler (ATE)', fontweight='bold')
+ax2.set_xlabel('Zeit [s]'); ax2.set_ylabel('ATE [m]')
+ax2.legend(fontsize=8); ax2.grid(alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+```
+
+## 5. Kamera-Modi im Überblick
+
+ORB-SLAM3 unterstützt verschiedene Sensor-Konfigurationen:
+
+| Modus | Sensoren | Skalierung | Typischer ATE | Anwendung |
+|---|---|---|---|---|
+| Monocular | 1 Kamera | ❌ (keine metrische Skala) | ~1-3 % | AR, Smartphones |
+| Stereo | 2 Kameras | ✅ | ~0.3-1 % | Roboter, Drohnen |
+| RGB-D | Kamera + Tiefe | ✅ | ~0.2-0.5 % | Innenbereich, HoloLens |
+| Mono-IMU | Kamera + IMU | ✅ | ~0.5-1.5 % | AR-Headsets |
+| Stereo-IMU | 2 Kameras + IMU | ✅ | ~0.1-0.4 % | Autonome Fahrzeuge |
+
+## 6. Rechenaufwand und Komplexität
+
+```{python}
+#| label: fig-timing
+#| fig-cap: "Typische Laufzeit der ORB-SLAM3 Komponenten pro Frame (30 Hz Kamera, 1000 Features, Intel i7)"
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+komponenten = [
+    "Feature\nExtraktion", "Feature\nMatching",
+    "Pose\nSchätzung", "Karten-\nProjektion",
+    "KF\nEntscheidung", "Lokales BA\n(async)"
+]
+times_ms = [4.5, 3.2, 2.1, 4.8, 0.5, 18.0]
+colors = ['#1a73e8', '#34a853', '#fbbc04', '#ea4335', '#9c27b0', '#00bcd4']
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+bars = ax.barh(komponenten, times_ms, color=colors, height=0.6,
+               edgecolor='white', linewidth=1.5)
+
+for bar, t in zip(bars, times_ms):
+    ax.text(t + 0.3, bar.get_y() + bar.get_height()/2,
+            f'{t:.1f} ms', va='center', fontsize=9, fontweight='bold')
+
+ax.axvline(x=33.3, color='red', linestyle='--', lw=1.5, label='Max. für 30 Hz (33.3 ms)')
+ax.set_xlabel('Laufzeit [ms]', fontsize=10)
+ax.set_title('ORB-SLAM3: Laufzeit der Hauptkomponenten', fontsize=12, fontweight='bold')
+ax.legend(fontsize=9)
+ax.set_xlim(0, 25)
+ax.grid(axis='x', alpha=0.3)
+ax.invert_yaxis()
+plt.tight_layout()
+plt.show()
+```
+
+> **Wichtig:** Das lokale BA läuft **asynchron** im Local-Mapping-Thread und blockiert das Tracking nicht. Der Tracking-Thread verarbeitet Frames in Echtzeit (~10-15 ms gesamt).
+
+## Literatur
+
+::: {#refs}
+:::

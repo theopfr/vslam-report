@@ -1,0 +1,450 @@
+---
+title: "Theoretischer Hintergrund"
+subtitle: "Mathematische Grundlagen von V-SLAM"
+date: today
+bibliography: references.bib
+---
+
+```{=html}
+<div class="hero-banner" style="padding:2.5rem 2rem;">
+  <h1 style="font-size:2.2rem;">Theoretischer Hintergrund</h1>
+  <p class="subtitle">Kameramodelle · Feature-Extraktion · Pose-Schätzung · Bundle Adjustment</p>
+</div>
+```
+
+## 1. Das Kameramodell
+
+### 1.1 Lochkamera (Pinhole-Modell)
+
+Das Standard-Kameramodell der Computer Vision ist das **Pinhole-Modell**. Es beschreibt, wie ein 3D-Weltpunkt $\mathbf{P} = (X, Y, Z)^\top$ auf den 2D-Bildpunkt $\mathbf{p} = (u, v)^\top$ projiziert wird [@hartley2004]:
+
+$$
+\lambda \begin{pmatrix} u \\ v \\ 1 \end{pmatrix} = \mathbf{K} \begin{bmatrix} \mathbf{R} \mid \mathbf{t} \end{bmatrix} \begin{pmatrix} X \\ Y \\ Z \\ 1 \end{pmatrix}
+$$
+
+Dabei ist $\lambda$ der Tiefenskalierungsfaktor (Disparität) und $\mathbf{K}$ die **intrinsische Kameramatrix**:
+
+$$
+\mathbf{K} = \begin{pmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{pmatrix}
+$$
+
+| Parameter | Bedeutung |
+|---|---|
+| $f_x, f_y$ | Brennweite in Pixeln (x- und y-Richtung) |
+| $c_x, c_y$ | Hauptpunkt (Bildmitte in Pixeln) |
+| $\mathbf{R} \in SO(3)$ | Rotationsmatrix (Kameraorientierung) |
+| $\mathbf{t} \in \mathbb{R}^3$ | Translationsvektor (Kameraposition) |
+
+```{python}
+#| label: fig-pinhole
+#| fig-cap: "Pinhole-Kamera: Projektion eines 3D-Punktes auf die Bildebene"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+fig = plt.figure(figsize=(9, 5))
+ax = fig.add_subplot(111, projection='3d')
+
+# Optisches Zentrum
+O = np.array([0, 0, 0])
+# 3D Weltpunkt
+P = np.array([2.5, 1.5, 6.0])
+# Bildebene bei Z = f
+f = 2.0
+# Projizierter Punkt
+p = (f / P[2]) * P
+
+# Bildebene zeichnen
+corners_x = [-1.5, 1.5, 1.5, -1.5]
+corners_y = [-1.0, -1.0, 1.0, 1.0]
+corners_z = [f, f, f, f]
+plane = [list(zip(corners_x, corners_y, corners_z))]
+ax.add_collection3d(Poly3DCollection(plane, alpha=0.15, facecolor='#1a73e8', edgecolor='#1a73e8'))
+
+# Strahlen
+ax.plot([O[0], P[0]], [O[1], P[1]], [O[2], P[2]], 'r--', lw=1.5, label='Sichtstrahl')
+ax.plot([O[0], p[0]], [O[1], p[1]], [O[2], p[2]], 'b-', lw=2)
+
+# Punkte
+ax.scatter(*O, s=80, c='black', zorder=5)
+ax.scatter(*P, s=100, c='red', zorder=5, label=f'3D-Punkt P = ({P[0]:.1f},{P[1]:.1f},{P[2]:.1f})')
+ax.scatter(*p, s=80, c='blue', zorder=5, label=f'Bildpunkt p = ({p[0]:.2f},{p[1]:.2f})')
+
+ax.text(*O + np.array([-0.2, -0.3, 0]), 'O (Optisches Zentrum)', fontsize=8)
+ax.text(*P + np.array([0.1, 0.1, 0.1]), 'P', fontsize=9, color='red')
+ax.text(*p + np.array([0.1, 0.1, 0.1]), 'p\'', fontsize=9, color='blue')
+ax.text(0, 0, f + 0.2, f'Bildebene (f={f})', fontsize=8, color='#1a73e8')
+
+ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z (Tiefe)')
+ax.set_title('Pinhole-Kameramodell', fontsize=12, fontweight='bold')
+ax.legend(fontsize=8, loc='upper left')
+ax.view_init(elev=20, azim=-60)
+plt.tight_layout()
+plt.show()
+```
+
+### 1.2 Verzeichnungskorrektur
+
+Reale Kameralinsen erzeugen Verzeichnungen (Distortion). Das Brown-Conrady-Modell korrigiert radiale und tangentiale Verzeichnung:
+
+$$
+\begin{aligned}
+x' &= x(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1 xy + p_2(r^2 + 2x^2) \\
+y' &= y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1(r^2 + 2y^2) + 2p_2 xy
+\end{aligned}
+$$
+
+Dabei ist $r^2 = x^2 + y^2$, $k_1, k_2, k_3$ sind radiale und $p_1, p_2$ tangentiale Koeffizienten.
+
+## 2. Lie-Gruppen: SO(3) und SE(3)
+
+Kameraposen werden als Elemente der **Speziellen Euklidischen Gruppe** $SE(3)$ beschrieben:
+
+$$
+\mathbf{T} = \begin{pmatrix} \mathbf{R} & \mathbf{t} \\ \mathbf{0}^\top & 1 \end{pmatrix} \in SE(3), \quad \mathbf{R} \in SO(3), \quad \mathbf{t} \in \mathbb{R}^3
+$$
+
+Die dazugehörige **Lie-Algebra** $\mathfrak{se}(3)$ ermöglicht die Optimierung auf der Mannigfaltigkeit (wichtig für Bundle Adjustment):
+
+$$
+\mathbf{T} = \exp(\boldsymbol{\xi}^\wedge), \quad \boldsymbol{\xi} = [\boldsymbol{\rho}, \boldsymbol{\phi}]^\top \in \mathbb{R}^6
+$$
+
+> **Warum Lie-Gruppen?** Rotationsmatrizen haben 9 Einträge, aber nur 3 Freiheitsgrade. Lie-Algebren erlauben die kompakte Repräsentation und gradientenbasierte Optimierung ohne Singularitäten.
+
+## 3. Feature-Extraktion: ORB-Features
+
+### 3.1 FAST Keypoint Detector
+
+ORB (Oriented FAST and Rotated BRIEF) nutzt den **FAST-Detektor** [@rosten2006] für effiziente Eckpunkterkennung. Ein Pixel $p$ gilt als Keypoint, wenn mindestens $n$ aufeinanderfolgende Pixel auf einem Kreis mit Radius 3 alle deutlich heller oder dunkler als $p$ sind:
+
+$$
+\forall x \in S: I(x) > I(p) + t \quad \text{oder} \quad I(x) < I(p) - t
+$$
+
+```{python}
+#| label: fig-fast
+#| fig-cap: "FAST-Detektor: Ein Pixel ist ein Keypoint, wenn genug Kreispixel deutlich heller/dunkler sind"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.5))
+
+# ── Links: Kreis-Schema ──
+ax = axes[0]
+ax.set_aspect('equal')
+ax.set_xlim(-5, 5); ax.set_ylim(-5, 5)
+
+cx, cy = 0, 0
+radius = 3
+angles = np.linspace(0, 2*np.pi, 17)[:-1]
+xs = radius * np.cos(angles)
+ys = radius * np.sin(angles)
+
+brightness = np.array([200, 210, 220, 80, 70, 75, 65, 210, 220, 200, 215, 70, 65, 75, 200, 210])
+norm_b = (brightness - brightness.min()) / (brightness.max() - brightness.min())
+
+for i, (x, y, b) in enumerate(zip(xs, ys, norm_b)):
+    color = plt.cm.RdYlGn(b)
+    ax.add_patch(mpatches.Circle((x, y), 0.35, color=color, zorder=4))
+    ax.text(x, y, str(i+1), ha='center', va='center', fontsize=6, fontweight='bold', color='black')
+
+ax.add_patch(mpatches.Circle((cx, cy), 0.5, color='#1a73e8', zorder=5))
+ax.text(cx, cy, 'p', ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+
+ax.add_patch(mpatches.Circle((cx, cy), radius, fill=False, linestyle='--', color='gray', linewidth=1))
+
+legend_elements = [
+    mpatches.Patch(color='#2e7d32', label='Hell (Keypoint-Kandidat)'),
+    mpatches.Patch(color='#c62828', label='Dunkel (Keypoint-Kandidat)'),
+    mpatches.Patch(color='#1a73e8', label='Zentralpixel p'),
+]
+ax.legend(handles=legend_elements, loc='lower right', fontsize=7)
+ax.set_title('FAST-Detektor Schema', fontweight='bold', fontsize=11)
+ax.axis('off')
+
+# ── Rechts: Keypoint-Stärke ──
+ax2 = axes[1]
+np.random.seed(42)
+rows, cols = 12, 12
+response = np.zeros((rows, cols))
+for i in range(1, rows-1):
+    for j in range(1, cols-1):
+        if np.random.rand() > 0.78:
+            response[i, j] = np.random.uniform(50, 255)
+
+im = ax2.imshow(response, cmap='hot', interpolation='nearest')
+ys_kp, xs_kp = np.where(response > 0)
+ax2.scatter(xs_kp, ys_kp, s=response[ys_kp, xs_kp] * 0.4,
+            facecolors='none', edgecolors='cyan', linewidths=1.5)
+ax2.set_title('Detektierte Keypoints', fontweight='bold', fontsize=11)
+ax2.set_xlabel('x (Pixel)'); ax2.set_ylabel('y (Pixel)')
+plt.colorbar(im, ax=ax2, label='FAST-Response')
+
+plt.tight_layout()
+plt.show()
+```
+
+### 3.2 BRIEF-Deskriptor und Orientierung
+
+ORB erweitert BRIEF um **Rotationsinvarianz**. Für jeden Keypoint wird die dominante Orientierung über das **Intensitäts-Schwerpunkt-Verfahren** berechnet:
+
+$$
+\theta = \text{atan2}(m_{01}, m_{10}), \quad m_{pq} = \sum_{x,y \in \text{Patch}} x^p y^q I(x,y)
+$$
+
+Der BRIEF-Deskriptor wird dann entlang dieser Orientierung $\theta$ rotiert (**Steered BRIEF**), sodass er rotationsinvariant wird. Das Ergebnis ist ein **256-Bit Binärdeskriptor** – extrem schnell zu vergleichen mit Hamming-Distanz:
+
+$$
+d_H(\mathbf{d}_1, \mathbf{d}_2) = \text{popcount}(\mathbf{d}_1 \oplus \mathbf{d}_2)
+$$
+
+### 3.3 Scale Invariance: Image Pyramid
+
+ORB baut eine **Bildpyramide** für Skalierungsinvarianz:
+
+```{python}
+#| label: fig-pyramid
+#| fig-cap: "Bildpyramide mit 4 Levels (Skalierungsfaktor 1.2). Keypoints werden auf allen Ebenen detektiert."
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig, ax = plt.subplots(figsize=(9, 4))
+ax.set_xlim(0, 10); ax.set_ylim(0, 5)
+ax.axis('off')
+
+scale = 1.2
+base_w, base_h = 3.2, 2.4
+x_start = 0.5
+
+for i in range(4):
+    w = base_w / (scale ** i)
+    h = base_h / (scale ** i)
+    y_start = (base_h - h) / 2 + 0.5
+    alpha = 0.9 - i * 0.15
+    color = f"#{hex(26 + i*50)[2:]:>02}73e8"
+    rect = mpatches.FancyBboxPatch((x_start, y_start), w, h,
+                                    boxstyle="round,pad=0.05",
+                                    facecolor='#e8f0fe', edgecolor='#1a73e8',
+                                    linewidth=2, alpha=alpha)
+    ax.add_patch(rect)
+    ax.text(x_start + w/2, y_start + h + 0.15,
+            f"Level {i}\n({1/scale**i:.2f}x)",
+            ha='center', fontsize=9, color='#1a73e8', fontweight='bold')
+    n_kp = max(3, 12 - i * 3)
+    np.random.seed(i * 7)
+    kp_x = np.random.uniform(x_start + 0.1, x_start + w - 0.1, n_kp)
+    kp_y = np.random.uniform(y_start + 0.1, y_start + h - 0.1, n_kp)
+    ax.scatter(kp_x, kp_y, s=20, c='red', zorder=5, marker='x')
+    ax.text(x_start + w + 0.1, y_start + h/2,
+            f"~{n_kp*15} KP", fontsize=8, va='center', color='#666')
+    x_start += w + 0.5
+
+ax.set_title("Bildpyramide für Skalierungsinvarianz (ORB)", fontsize=12, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+## 4. Feature-Matching und Ausreißerentfernung
+
+### 4.1 Brute-Force und FLANN-Matching
+
+Features zweier Bilder werden über die **Hamming-Distanz** gematcht. Das **Lowe's Ratio-Test** filtert schlechte Matches:
+
+$$
+\frac{d_1}{d_2} < 0.75 \quad \Rightarrow \text{Match akzeptiert}
+$$
+
+### 4.2 RANSAC – Robuste Schätzung
+
+**Random Sample Consensus (RANSAC)** entfernt Ausreißer aus Feature-Matches [@fischler1981]:
+
+```
+Wiederhole N mal:
+  1. Wähle zufällig minimale Punktmenge (z.B. 8 für Fundamental-Matrix)
+  2. Schätze Modell aus dieser Teilmenge
+  3. Berechne Inlier: alle Punkte mit Fehler < Schwellwert ε
+Gib Modell mit meisten Inliern zurück
+```
+
+Die Anzahl benötigter Iterationen $N$ hängt von der Inlier-Rate $w$ und Modelldimension $n$ ab:
+
+$$
+N = \frac{\log(1 - p)}{\log(1 - w^n)}
+$$
+
+Für $p = 0.99$, $w = 0.5$, $n = 8$: $N \approx 1177$ Iterationen.
+
+```{python}
+#| label: fig-ransac
+#| fig-cap: "RANSAC: Robuste Linien-/Modellschätzung trotz 40% Ausreißer"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(0)
+n_points = 60
+n_outliers = 24
+
+xs_in = np.linspace(0, 10, n_points - n_outliers)
+ys_in = 2.3 * xs_in + 1.0 + np.random.randn(len(xs_in)) * 0.4
+
+xs_out = np.random.uniform(0, 10, n_outliers)
+ys_out = np.random.uniform(0, 25, n_outliers)
+
+xs = np.concatenate([xs_in, xs_out])
+ys = np.concatenate([ys_in, ys_out])
+is_inlier = np.concatenate([np.ones(len(xs_in), bool), np.zeros(n_outliers, bool)])
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+for ax, title, use_ransac in zip(axes, ["Ohne RANSAC (LS)", "Mit RANSAC"], [False, True]):
+    ax.scatter(xs[~is_inlier], ys[~is_inlier], c='#ea4335', s=30, zorder=4, label='Ausreißer', alpha=0.8)
+    ax.scatter(xs[is_inlier], ys[is_inlier], c='#1a73e8', s=30, zorder=4, label='Inlier', alpha=0.8)
+
+    x_line = np.linspace(-0.5, 10.5, 200)
+    if use_ransac:
+        a, b = 2.3, 1.0
+        ax.fill_between(x_line, a*x_line + b - 1.2, a*x_line + b + 1.2,
+                        alpha=0.12, color='#34a853', label='Inlier-Band')
+    else:
+        coeffs = np.polyfit(xs, ys, 1)
+        a, b = coeffs
+    ax.plot(x_line, a * x_line + b,
+            color='#34a853' if use_ransac else '#fbbc04',
+            lw=2.5, label=f'y = {a:.1f}x + {b:.1f}')
+
+    ax.set_xlim(-0.5, 10.5); ax.set_ylim(-2, 28)
+    ax.set_title(title, fontweight='bold')
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    ax.set_xlabel('x'); ax.set_ylabel('y')
+
+plt.tight_layout()
+plt.show()
+```
+
+## 5. Pose-Schätzung
+
+### 5.1 Essential Matrix und 5-Punkt-Algorithmus
+
+Gegeben korrespondierende Bildpunkte $\mathbf{x} \leftrightarrow \mathbf{x}'$, beschreibt die **Essential Matrix** $\mathbf{E}$ die epipolare Geometrie zwischen zwei kalibrierten Kameras [@longuet-higgins1981]:
+
+$$
+\mathbf{x}'^\top \mathbf{E}\, \mathbf{x} = 0, \quad \mathbf{E} = \mathbf{K}'^\top \mathbf{F}\, \mathbf{K}
+$$
+
+Aus $\mathbf{E}$ lässt sich die relative Pose $[\mathbf{R} \mid \mathbf{t}]$ via SVD-Zerlegung bestimmen.
+
+### 5.2 PnP – Perspective-n-Point
+
+Für bereits kartierte 3D-Punkte wird **EPnP** (Efficient PnP) verwendet, um aus $n$ 2D-3D-Korrespondenzen die Kamerapose direkt zu schätzen [@lepetit2009]:
+
+$$
+\arg\min_{\mathbf{R}, \mathbf{t}} \sum_{i=1}^{n} \left\| \mathbf{x}_i - \pi(\mathbf{K}, \mathbf{R}, \mathbf{t}, \mathbf{P}_i) \right\|^2
+$$
+
+EPnP löst dies analytisch in $O(n)$ – ideal für Echtzeit-Tracking.
+
+## 6. Bundle Adjustment
+
+**Bundle Adjustment (BA)** ist die globale nichtlineare Optimierung aller Kameraposen und 3D-Punkte:
+
+$$
+\min_{\{\mathbf{T}_i\}, \{\mathbf{P}_j\}} \sum_{i,j} \rho\!\left(\left\| \mathbf{x}_{ij} - \pi(\mathbf{T}_i, \mathbf{P}_j) \right\|^2_{\boldsymbol{\Sigma}_{ij}}\right)
+$$
+
+| Symbol | Bedeutung |
+|---|---|
+| $\mathbf{T}_i \in SE(3)$ | Pose der $i$-ten Kamera |
+| $\mathbf{P}_j \in \mathbb{R}^3$ | Position des $j$-ten Landmarkes |
+| $\mathbf{x}_{ij}$ | Beobachteter Bildpunkt |
+| $\boldsymbol{\Sigma}_{ij}$ | Informationsmatrix (Gewichtung) |
+| $\rho(\cdot)$ | Robuste Fehlerfunktion (Huber) |
+
+BA wird mit dem **Gauss-Newton-** oder **Levenberg-Marquardt-Verfahren** gelöst, wobei die **Schur-Komplement-Zerlegung** die Blockstruktur des Jacobians ausnutzt.
+
+```{python}
+#| label: fig-ba
+#| fig-cap: "Bundle Adjustment: Optimierung von Kameraposen (blau) und 3D-Punkten (rot) durch Minimierung des Reprojektionsfehlers"
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(1)
+
+n_cam = 5
+n_pts = 20
+
+cam_true = np.column_stack([np.linspace(0, 8, n_cam), np.zeros(n_cam)])
+pts_true = np.column_stack([
+    np.random.uniform(1, 7, n_pts),
+    np.random.uniform(3, 8, n_pts)
+])
+
+# Noisy observations (before BA)
+cam_noisy = cam_true + np.random.randn(*cam_true.shape) * 0.35
+pts_noisy = pts_true + np.random.randn(*pts_true.shape) * 0.4
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+for ax, (cams, pts), title in zip(
+    axes,
+    [(cam_noisy, pts_noisy), (cam_true, pts_true)],
+    ["Vor Bundle Adjustment", "Nach Bundle Adjustment"]
+):
+    # Observation lines
+    for ci in range(n_cam):
+        for pi in range(0, n_pts, 4):
+            ax.plot([cams[ci, 0], pts[pi, 0]], [cams[ci, 1], pts[pi, 1]],
+                    color='gray', alpha=0.15, lw=0.8)
+
+    ax.scatter(pts[:, 0], pts[:, 1], c='#ea4335', s=50, zorder=5, label='3D-Punkte (Landmarke)')
+    ax.scatter(cams[:, 0], cams[:, 1], c='#1a73e8', s=120, marker='^', zorder=6, label='Kameraposen')
+
+    for i, (x, y) in enumerate(cams):
+        ax.annotate(f'C{i+1}', (x, y), xytext=(0, -16),
+                    textcoords='offset points', ha='center', fontsize=8, color='#1a73e8')
+
+    ax.set_xlim(-1, 9); ax.set_ylim(-1, 10)
+    ax.set_title(title, fontweight='bold')
+    ax.grid(alpha=0.3); ax.legend(fontsize=8)
+    ax.set_xlabel('X [m]'); ax.set_ylabel('Y [m]')
+
+plt.suptitle('Bundle Adjustment – Visualisierung', fontsize=13, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+## 7. Loop Closure Detection
+
+**Loop Closure** bezeichnet die Erkennung, dass ein System einen bereits besuchten Ort erneut sieht. Dies ist entscheidend, um den **akkumulierten Driftfehler** zu korrigieren.
+
+### Bag of Words (DBoW2)
+
+ORB-SLAM3 verwendet **DBoW2** (Dictionary of Binary Words) [@galvez-lopez2012]:
+
+1. **Offline**: Trainiere einen visuellen Vokabular-Baum aus Millionen von ORB-Features
+2. **Online**: Repräsentiere jeden Keyframe als BoW-Vektor (TF-IDF-gewichtet)
+3. **Matching**: Vergleiche BoW-Vektoren mit Cosinus-Ähnlichkeit – $O(1)$ Lookup
+
+$$
+s(\mathbf{v}_1, \mathbf{v}_2) = 1 - \frac{1}{2} \left| \frac{\mathbf{v}_1}{\|\mathbf{v}_1\|} - \frac{\mathbf{v}_2}{\|\mathbf{v}_2\|} \right|
+$$
+
+Erkannte Loop-Closures werden als **Pose Graph Constraints** eingebettet und mit $g^2o$ optimiert.
+
+## Literatur
+
+::: {#refs}
+:::

@@ -1,0 +1,639 @@
+---
+title: "Interaktive Demo & Quiz"
+subtitle: "Experimente, Visualisierungen und Lernzielabfrage"
+date: today
+bibliography: references.bib
+---
+
+```{=html}
+<div class="hero-banner" style="padding:2.5rem 2rem;">
+  <h1 style="font-size:2.2rem;">Demo & Quiz</h1>
+  <p class="subtitle">Erlebe V-SLAM interaktiv – Visualisierungen, Parameter-Explorer und Lernzielabfrage</p>
+</div>
+```
+
+## 1. Interaktive 3D-Karte: V-SLAM Simulation
+
+Die folgende Babylon.js-Visualisierung simuliert eine typische V-SLAM-Ausgabe: eine **3D-Punktwolke** (Karte) und die **Kameraposen-Trajektorie**. Drehe und zoome die Szene mit der Maus.
+
+```{=html}
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+
+<div style="width:100%; height:500px; position:relative; margin:1.5rem 0;">
+  <canvas id="slamCanvas" style="width:100%; height:100%; border-radius:0.75rem;
+    border:1px solid #c7d2fe; display:block; touch-action:none; background:#0f1117;"></canvas>
+  <div id="slamInfo" style="position:absolute; top:12px; left:16px; background:rgba(0,0,0,0.65);
+    color:white; padding:8px 14px; border-radius:8px; font-size:13px; font-family:monospace; line-height:1.7;">
+    Punkte: 0 | Frames: 0/0
+  </div>
+  <div style="position:absolute; bottom:12px; left:16px; background:rgba(0,0,0,0.55);
+    color:#aaa; padding:6px 12px; border-radius:6px; font-size:11px;">
+    🖱️ Linke Taste: Drehen &nbsp;|&nbsp; Scrollrad: Zoom &nbsp;|&nbsp; Rechte Taste: Verschieben
+  </div>
+</div>
+<div style="display:flex; gap:0.8rem; margin-bottom:1.5rem; flex-wrap:wrap; align-items:center;">
+  <button onclick="startSLAM()" style="background:#1a73e8;color:white;border:none;padding:0.5rem 1.2rem;
+    border-radius:0.5rem;cursor:pointer;font-size:0.9rem;font-weight:600;">▶ Simulation starten</button>
+  <button onclick="resetSLAM()" style="background:#5f6368;color:white;border:none;padding:0.5rem 1.2rem;
+    border-radius:0.5rem;cursor:pointer;font-size:0.9rem;font-weight:600;">↺ Zurücksetzen</button>
+  <label style="font-size:0.85rem;color:#555;">
+    Geschwindigkeit:
+    <input type="range" id="speedSlider" min="1" max="5" value="2" style="width:100px; vertical-align:middle;">
+    <span id="speedLabel">2x</span>
+  </label>
+</div>
+
+<script>
+(function() {
+  let engine, scene, camera, slamInterval = null;
+  let mapPoints = [], camMeshes = [], pathPoints = [];
+  let frameIdx = 0;
+  const TOTAL_FRAMES = 120;
+
+  // Generate a realistic spiral trajectory
+  function genTrajectory() {
+    const pts = [];
+    for (let i = 0; i < TOTAL_FRAMES; i++) {
+      const t = i / TOTAL_FRAMES;
+      const angle = t * Math.PI * 4;
+      pts.push(new BABYLON.Vector3(
+        Math.cos(angle) * (3 + t * 1.5),
+        t * 4 - 2,
+        Math.sin(angle) * (3 + t * 1.5)
+      ));
+    }
+    return pts;
+  }
+
+  function initScene() {
+    const canvas = document.getElementById("slamCanvas");
+    if (!canvas) return;
+    if (engine) { engine.dispose(); }
+
+    engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true });
+    scene = new BABYLON.Scene(engine);
+    scene.clearColor = new BABYLON.Color4(0.04, 0.05, 0.09, 1);
+
+    camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/3, Math.PI/3.5, 18,
+      new BABYLON.Vector3(0, 1, 0), scene);
+    camera.attachControl(canvas, true);
+    camera.lowerRadiusLimit = 3;
+    camera.upperRadiusLimit = 40;
+
+    const light = new BABYLON.HemisphericLight("light",
+      new BABYLON.Vector3(0, 1, 0), scene);
+    light.intensity = 0.8;
+
+    // Grid floor
+    const grid = BABYLON.MeshBuilder.CreateGround("grid", {width:20, height:20}, scene);
+    const gridMat = new BABYLON.StandardMaterial("gridMat", scene);
+    gridMat.wireframe = true;
+    gridMat.alpha = 0.12;
+    gridMat.emissiveColor = new BABYLON.Color3(0.4, 0.6, 1);
+    grid.material = gridMat;
+    grid.position.y = -2;
+
+    engine.runRenderLoop(() => { if (scene) scene.render(); });
+    window.addEventListener("resize", () => engine.resize());
+
+    mapPoints = []; camMeshes = []; pathPoints = []; frameIdx = 0;
+    document.getElementById("slamInfo").textContent = "Punkte: 0 | Frames: 0/" + TOTAL_FRAMES;
+  }
+
+  window.startSLAM = function() {
+    if (slamInterval) clearInterval(slamInterval);
+    if (!engine) initScene();
+    if (frameIdx >= TOTAL_FRAMES) { resetSLAM(); return; }
+
+    const traj = genTrajectory();
+    const speed = parseInt(document.getElementById("speedSlider").value);
+
+    slamInterval = setInterval(() => {
+      if (frameIdx >= TOTAL_FRAMES) {
+        clearInterval(slamInterval);
+        return;
+      }
+      const steps = speed;
+      for (let s = 0; s < steps && frameIdx < TOTAL_FRAMES; s++) {
+        const pos = traj[frameIdx];
+        // Add camera frustum
+        const cam = BABYLON.MeshBuilder.CreateBox("c" + frameIdx, {size: 0.12}, scene);
+        cam.position = pos.clone();
+        const camMat = new BABYLON.StandardMaterial("cm" + frameIdx, scene);
+        camMat.emissiveColor = new BABYLON.Color3(0.1, 0.5, 1.0);
+        cam.material = camMat;
+        camMeshes.push(cam);
+
+        // Add map points around trajectory
+        const nPts = Math.floor(Math.random() * 5) + 3;
+        for (let i = 0; i < nPts; i++) {
+          const spread = 2.5;
+          const mp = BABYLON.MeshBuilder.CreateSphere("mp" + frameIdx + "_" + i,
+            {diameter: 0.06}, scene);
+          mp.position = new BABYLON.Vector3(
+            pos.x + (Math.random() - 0.5) * spread,
+            pos.y + (Math.random() - 0.5) * spread,
+            pos.z + (Math.random() - 0.5) * spread
+          );
+          const mpMat = new BABYLON.StandardMaterial("mpm" + frameIdx + "_" + i, scene);
+          const hue = Math.random();
+          mpMat.emissiveColor = new BABYLON.Color3(0.4 + hue * 0.4, 0.7, 0.3 + hue * 0.3);
+          mp.material = mpMat;
+          mapPoints.push(mp);
+        }
+
+        // Draw path line
+        pathPoints.push(pos.clone());
+        if (pathPoints.length > 1) {
+          const line = BABYLON.MeshBuilder.CreateLines("line" + frameIdx, {
+            points: [pathPoints[pathPoints.length-2], pathPoints[pathPoints.length-1]]
+          }, scene);
+          line.color = new BABYLON.Color3(1.0, 0.4, 0.1);
+        }
+
+        frameIdx++;
+      }
+      document.getElementById("slamInfo").textContent =
+        `Punkte: ${mapPoints.length} | Frames: ${frameIdx}/${TOTAL_FRAMES}`;
+    }, 80);
+  };
+
+  window.resetSLAM = function() {
+    if (slamInterval) clearInterval(slamInterval);
+    slamInterval = null;
+    initScene();
+  };
+
+  document.getElementById("speedSlider").addEventListener("input", function() {
+    document.getElementById("speedLabel").textContent = this.value + "x";
+  });
+
+  // Auto-init on load
+  window.addEventListener("DOMContentLoaded", initScene);
+})();
+</script>
+```
+
+## 2. Feature-Matching Visualisierung
+
+```{python}
+#| label: fig-matching
+#| fig-cap: "Simuliertes Feature-Matching zwischen zwei Kamera-Frames. Grün = akzeptierte Matches (Lowe's Ratio-Test), Rot = verworfene Ausreißer."
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+np.random.seed(42)
+
+img_w, img_h = 8, 5
+n_features = 30
+
+# Frame 1 features
+kp1 = np.column_stack([
+    np.random.uniform(0.3, img_w - 0.3, n_features),
+    np.random.uniform(0.3, img_h - 0.3, n_features)
+])
+
+# Frame 2: mostly same features + small displacement + some outliers
+displacement = np.column_stack([
+    np.random.normal(0.4, 0.2, n_features),
+    np.random.normal(0.15, 0.1, n_features)
+])
+kp2 = np.clip(kp1 + displacement, 0.3, img_w - 0.3)
+kp2[:, 0] = np.clip(kp2[:, 0], 0.3, img_w - 0.3)
+kp2[:, 1] = np.clip(kp2[:, 1], 0.3, img_h - 0.3)
+
+# Some matches are outliers (large displacement)
+n_outliers = 6
+outlier_idx = np.random.choice(n_features, n_outliers, replace=False)
+kp2[outlier_idx] = np.column_stack([
+    np.random.uniform(0.5, img_w - 0.5, n_outliers),
+    np.random.uniform(0.5, img_h - 0.5, n_outliers)
+])
+
+fig, axes = plt.subplots(2, 1, figsize=(11, 8))
+
+for ax_idx, (title, use_ransac) in enumerate([
+    ("Feature-Matching: Vor RANSAC (alle Matches)", False),
+    ("Feature-Matching: Nach RANSAC (Inlier grün, Outlier rot)", True)
+]):
+    ax = axes[ax_idx]
+
+    # Draw image backgrounds
+    for offset_x, label in [(0, "Frame 1 (t)"), (img_w + 1, "Frame 2 (t+1)")]:
+        rect = mpatches.FancyBboxPatch((offset_x, 0), img_w, img_h,
+                                        boxstyle="round,pad=0",
+                                        facecolor='#e8eaf6', edgecolor='#5c6bc0',
+                                        linewidth=2)
+        ax.add_patch(rect)
+        ax.text(offset_x + img_w/2, img_h + 0.3, label,
+                ha='center', fontsize=10, fontweight='bold', color='#3949ab')
+
+    # Draw keypoints
+    for kp, offset in [(kp1, 0), (kp2, img_w + 1)]:
+        ax.scatter(kp[:, 0] + offset, kp[:, 1], s=40, c='#1a73e8',
+                   zorder=5, edgecolors='white', linewidths=0.8)
+
+    # Draw match lines
+    for i in range(n_features):
+        is_outlier = i in outlier_idx
+        if use_ransac:
+            if is_outlier:
+                color, alpha, lw = '#ea4335', 0.5, 1.0
+            else:
+                color, alpha, lw = '#34a853', 0.7, 1.2
+        else:
+            color, alpha, lw = '#fbbc04', 0.5, 1.0
+
+        ax.plot([kp1[i, 0], kp2[i, 0] + img_w + 1],
+                [kp1[i, 1], kp2[i, 1]],
+                color=color, alpha=alpha, lw=lw, zorder=3)
+
+    if use_ransac:
+        inlier_count = n_features - n_outliers
+        ax.set_title(f"{title}  ({inlier_count}/{n_features} Inlier)", fontweight='bold', fontsize=10)
+    else:
+        ax.set_title(f"{title}  ({n_features}/{n_features} Matches)", fontweight='bold', fontsize=10)
+
+    ax.set_xlim(-0.5, 2 * img_w + 1.5)
+    ax.set_ylim(-0.5, img_h + 0.8)
+    ax.axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+## 3. Epipolare Geometrie – Interaktiv
+
+Der folgende Parameter-Explorer zeigt, wie sich **epipolare Linien** in Abhängigkeit von der Kamerabasislinie und dem 3D-Punkt verhalten:
+
+```{python}
+#| label: fig-epipolar
+#| fig-cap: "Epipolare Geometrie: Projizierter 3D-Punkt (rot) und zugehörige epipolare Linie in der zweiten Kamera (blau gestrichelt). Alle möglichen Kamerapositionen des 3D-Punktes liegen auf dieser Linie."
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+fig = plt.figure(figsize=(11, 4.5))
+
+# ── 3D view ──
+ax3d = fig.add_subplot(121, projection='3d')
+
+# Two cameras
+C1 = np.array([0., 0., 0.])
+C2 = np.array([2., 0., 0.])
+f = 1.5
+
+# 3D point
+P = np.array([1., 1.5, 5.])
+
+# Image planes
+def draw_image_plane(ax, C, color, label):
+    corners = np.array([[-1,-0.7,f],[1,-0.7,f],[1,0.7,f],[-1,0.7,f],[-1,-0.7,f]])
+    corners += C
+    ax.plot(corners[:,0], corners[:,2], corners[:,1], color=color, lw=1.5)
+    ax.text(C[0], C[2]+f+0.2, C[1]+0.9, label, ha='center', fontsize=8, color=color, fontweight='bold')
+
+draw_image_plane(ax3d, C1, '#1a73e8', 'Kamera 1')
+draw_image_plane(ax3d, C2, '#34a853', 'Kamera 2')
+
+# Rays from cameras to P
+for C, color in [(C1, '#1a73e8'), (C2, '#34a853')]:
+    ax3d.plot([C[0], P[0]], [C[2], P[2]], [C[1], P[1]], '--', color=color, alpha=0.7, lw=1.5)
+
+ax3d.scatter(*[P[0]], *[P[2]], *[P[1]], s=120, c='red', zorder=6)
+ax3d.scatter(*[C1[0]], *[C1[2]], *[C1[1]], s=100, c='#1a73e8', marker='^', zorder=6)
+ax3d.scatter(*[C2[0]], *[C2[2]], *[C2[1]], s=100, c='#34a853', marker='^', zorder=6)
+ax3d.text(P[0]+0.1, P[2]+0.2, P[1]+0.1, 'P', fontsize=10, color='red', fontweight='bold')
+
+# Baseline
+ax3d.plot([C1[0], C2[0]], [C1[2], C2[2]], [0, 0], 'k--', lw=1, alpha=0.5)
+ax3d.set_xlabel('X'); ax3d.set_zlabel('Y'); ax3d.set_ylabel('Z')
+ax3d.set_title('3D-Szene mit Epipolarebene', fontweight='bold', fontsize=10)
+ax3d.view_init(elev=18, azim=-65)
+
+# ── 2D image planes ──
+ax2d = fig.add_subplot(122)
+
+# Project P to both image planes
+def project(C, P, f=1.5):
+    d = P - C
+    return np.array([f * d[0]/d[2], f * d[1]/d[2]])
+
+p1 = project(C1, P)
+p2 = project(C2, P)
+
+# Epipolar line in image 2
+depths = np.linspace(2, 20, 60)
+epi_pts = np.array([project(C2, C1 + t * (P - C1) / np.linalg.norm(P - C1)) for t in depths])
+
+# Draw image 1
+rect1 = plt.Rectangle((-1.2, -0.85), 2.4, 1.7, facecolor='#e8f0fe', edgecolor='#1a73e8', lw=2)
+ax2d.add_patch(rect1)
+ax2d.scatter(p1[0], p1[1], s=100, c='red', zorder=6)
+ax2d.text(p1[0]+0.05, p1[1]+0.1, "p₁", fontsize=9, color='red')
+ax2d.text(0, 0.98, "Bild 1", ha='center', fontsize=9, color='#1a73e8',
+          fontweight='bold', transform=ax2d.transAxes,
+          bbox=dict(facecolor='white', edgecolor='#1a73e8', boxstyle='round,pad=0.2'))
+
+# Draw image 2 (offset)
+offset = 2.6
+rect2 = plt.Rectangle((-1.2 + offset, -0.85), 2.4, 1.7,
+                        facecolor='#e6f4ea', edgecolor='#34a853', lw=2)
+ax2d.add_patch(rect2)
+ax2d.scatter(p2[0] + offset, p2[1], s=100, c='red', zorder=6)
+ax2d.text(p2[0]+offset+0.05, p2[1]+0.1, "p₂", fontsize=9, color='red')
+ax2d.plot(epi_pts[:,0] + offset, epi_pts[:,1], '#1a73e8', lw=2, linestyle='--',
+          label='Epipolare Linie l₂')
+ax2d.text(offset, 0.98, "Bild 2", ha='center', fontsize=9, color='#34a853',
+          fontweight='bold', transform=ax2d.transAxes,
+          bbox=dict(facecolor='white', edgecolor='#34a853', boxstyle='round,pad=0.2'))
+
+ax2d.set_xlim(-1.5, 4.3); ax2d.set_ylim(-1.1, 1.1)
+ax2d.set_title("Epipolare Linie in den Bildebenen", fontweight='bold', fontsize=10)
+ax2d.legend(fontsize=8, loc='lower right')
+ax2d.axis('off')
+
+plt.tight_layout()
+plt.show()
+```
+
+## 4. SLAM-Drift ohne und mit Loop Closure
+
+```{python}
+#| label: fig-loopclosure
+#| fig-cap: "Auswirkung von Loop Closure: Links akkumuliert sich Drift über Zeit. Rechts korrigiert Loop Closure die Trajektorie bei Wiedererkennung des Startpunktes."
+#| code-fold: true
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(5)
+
+def gen_loop_trajectory(n=300):
+    angles = np.linspace(0, 2*np.pi, n)
+    r = 3.0
+    x = r * np.cos(angles)
+    y = r * np.sin(angles)
+    return x, y
+
+x_gt, y_gt = gen_loop_trajectory()
+
+drift_x = np.cumsum(np.random.randn(len(x_gt)) * 0.025)
+drift_y = np.cumsum(np.random.randn(len(y_gt)) * 0.020)
+x_drift = x_gt + drift_x
+y_drift = y_gt + drift_y
+
+drift_x2 = np.cumsum(np.random.randn(len(x_gt)) * 0.025)
+drift_y2 = np.cumsum(np.random.randn(len(y_gt)) * 0.020)
+x_noloop = x_gt + drift_x2
+y_noloop = y_gt + drift_y2
+
+lc_point = 280
+correction_x = np.linspace(0, x_noloop[lc_point] - x_gt[lc_point], len(x_gt))
+correction_y = np.linspace(0, y_noloop[lc_point] - y_gt[lc_point], len(y_gt))
+x_lc = x_noloop - correction_x * np.clip(np.arange(len(x_gt)) / lc_point, 0, 1)
+y_lc = y_noloop - correction_y * np.clip(np.arange(len(y_gt)) / lc_point, 0, 1)
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+
+for ax, (x_est, y_est), title in zip(
+    axes,
+    [(x_noloop, y_noloop), (x_lc, y_lc)],
+    ["Ohne Loop Closure\n(Drift akkumuliert sich)", "Mit Loop Closure\n(Drift korrigiert)"]
+):
+    ax.plot(x_gt, y_gt, 'k-', lw=2.5, label='Ground Truth', zorder=5)
+    ax.plot(x_est, y_est, '#ea4335', lw=1.8, linestyle='--', alpha=0.9, label='Geschätzte Trajektorie')
+
+    ax.scatter(x_gt[0], y_gt[0], s=150, c='#34a853', zorder=7, marker='*', label='Start/Ziel')
+    if title.startswith("Mit"):
+        ax.scatter(x_est[lc_point], y_est[lc_point], s=120, c='#fbbc04', zorder=7,
+                   marker='D', label='Loop Closure erkannt')
+        ax.annotate('Loop\nClosure!', xy=(x_est[lc_point], y_est[lc_point]),
+                    xytext=(x_est[lc_point]+1.5, y_est[lc_point]+1.0),
+                    arrowprops=dict(arrowstyle='->', color='#fbbc04', lw=2),
+                    fontsize=9, color='#a37b00', fontweight='bold')
+
+    ate = np.sqrt((x_est - x_gt)**2 + (y_est - y_gt)**2)
+    ax.set_title(f"{title}\n(Ø ATE = {ate.mean():.2f} m)", fontweight='bold', fontsize=10)
+    ax.legend(fontsize=8, loc='upper right')
+    ax.grid(alpha=0.3)
+    ax.set_aspect('equal')
+    ax.set_xlabel('X [m]'); ax.set_ylabel('Y [m]')
+
+plt.suptitle('Trajektorie mit und ohne Loop Closure', fontsize=12, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+## 5. Lernzielabfrage: Quiz
+
+Teste dein Verständnis von V-SLAM! Klicke auf eine Antwort, um sie zu überprüfen.
+
+```{=html}
+<style>
+.quiz-result { display:none; margin-top:0.7rem; padding:0.7rem 1rem;
+  border-radius:0.5rem; font-size:0.88rem; font-weight:500; }
+.quiz-result.correct { background:#d4edda; color:#1e7e34; border:1px solid #34a853; display:block; }
+.quiz-result.wrong   { background:#f8d7da; color:#842029; border:1px solid #ea4335; display:block; }
+</style>
+
+<!-- Frage 1 -->
+<div class="quiz-question">
+  <h4>❓ Frage 1: Was beschreibt die Essential Matrix in V-SLAM?</h4>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q1')">
+    A) Die intrinsischen Parameter der Kamera (Brennweite, Hauptpunkt)
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, true, 'q1')">
+    B) Die epipolare Geometrie zwischen zwei kalibrierten Kameras
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q1')">
+    C) Den absoluten Drift der geschätzten Trajektorie
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q1')">
+    D) Die 3D-Punktwolke der Umgebungskarte
+  </button>
+  <div id="q1-correct" class="quiz-result correct">
+    ✅ Richtig! Die Essential Matrix E beschreibt die relative Pose zwischen zwei Kameras und erfüllt x'ᵀEx = 0 für korrespondierende Bildpunkte.
+  </div>
+  <div id="q1-wrong" class="quiz-result wrong">
+    ❌ Nicht ganz. Die Essential Matrix beschreibt die epipolare Geometrie zwischen zwei <em>kalibrierten</em> Kameras (im Gegensatz zur Fundamental Matrix für unkalibrierte Kameras).
+  </div>
+</div>
+
+<!-- Frage 2 -->
+<div class="quiz-question">
+  <h4>❓ Frage 2: Wozu dient Loop Closure in V-SLAM?</h4>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q2')">
+    A) Zur Initialisierung des Systems beim Start
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q2')">
+    B) Zur Extraktion von ORB-Features aus jedem Frame
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, true, 'q2')">
+    C) Zur Korrektur des akkumulierten Trajektorienfehlers bei Wiedererkennung
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q2')">
+    D) Zur Berechnung der Bildpyramide für Skalierungsinvarianz
+  </button>
+  <div id="q2-correct" class="quiz-result correct">
+    ✅ Korrekt! Loop Closure erkennt bereits besuchte Orte und korrigiert durch globale Pose-Graph-Optimierung den angesammelten Drift.
+  </div>
+  <div id="q2-wrong" class="quiz-result wrong">
+    ❌ Falsch. Loop Closure dient der Erkennung bereits besuchter Orte und der Drift-Korrektur durch Pose-Graph-Optimierung.
+  </div>
+</div>
+
+<!-- Frage 3 -->
+<div class="quiz-question">
+  <h4>❓ Frage 3: Was ist der Hauptvorteil von direkten SLAM-Methoden (z. B. DSO) gegenüber feature-basierten (z. B. ORB-SLAM3)?</h4>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q3')">
+    A) Direktere Methoden benötigen weniger Rechenzeit
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, true, 'q3')">
+    B) Sie nutzen alle verfügbaren Bildpixel, nicht nur Keypoints – robuster in texturarmen Bereichen
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q3')">
+    C) Sie bieten eingebaute Loop-Closure-Erkennung
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q3')">
+    D) Direkte Methoden skalieren besser auf große Umgebungen
+  </button>
+  <div id="q3-correct" class="quiz-result correct">
+    ✅ Richtig! Direkte Methoden minimieren den photometrischen Fehler über alle Pixel, was in texturarmen oder monotonen Bereichen deutliche Vorteile bietet.
+  </div>
+  <div id="q3-wrong" class="quiz-result wrong">
+    ❌ Nicht korrekt. Der Hauptvorteil direkter Methoden ist die Nutzung aller Bildpixel (nicht nur Feature-Punkte), wodurch sie robuster in texturarmen Szenen sind.
+  </div>
+</div>
+
+<!-- Frage 4 -->
+<div class="quiz-question">
+  <h4>❓ Frage 4: Was ist die Lie-Gruppe SE(3) in V-SLAM?</h4>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q4')">
+    A) Ein neuronales Netzwerk zur Pose-Schätzung
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q4')">
+    B) Der Deskriptor-Typ von ORB-Features
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q4')">
+    C) Eine Methode zur Skalierungsnormalisierung
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, true, 'q4')">
+    D) Die mathematische Gruppe aller starren Körpertransformationen (Rotation + Translation) im 3D-Raum
+  </button>
+  <div id="q4-correct" class="quiz-result correct">
+    ✅ Exzellent! SE(3) (Special Euclidean Group) beschreibt alle 3D-Starrkörpertransformationen und ist die mathematische Grundlage für Kameraposen in SLAM.
+  </div>
+  <div id="q4-wrong" class="quiz-result wrong">
+    ❌ Falsch. SE(3) ist die Gruppe der speziellen euklidischen Transformationen – sie repräsentiert alle möglichen 3D-Rotationen und -Translationen einer Kamera.
+  </div>
+</div>
+
+<!-- Frage 5 -->
+<div class="quiz-question">
+  <h4>❓ Frage 5: Was ist der Atlas in ORB-SLAM3?</h4>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q5')">
+    A) Ein vortrainiertes Deep-Learning-Modell für Feature-Extraktion
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, true, 'q5')">
+    B) Ein Multi-Map-System, das mehrere Karten gleichzeitig verwalten und fusionieren kann
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q5')">
+    C) Ein Bundle-Adjustment-Algorithmus für globale Optimierung
+  </button>
+  <button class="quiz-option" onclick="checkAnswer(this, false, 'q5')">
+    D) Die Bibliothek zur IMU-Vorintegration
+  </button>
+  <div id="q5-correct" class="quiz-result correct">
+    ✅ Perfekt! Der Atlas ist das zentrale Neuerungsmerkmal von ORB-SLAM3 – er verwaltet aktive und inaktive Karten und ermöglicht Map Merging nach Tracking-Verlust.
+  </div>
+  <div id="q5-wrong" class="quiz-result wrong">
+    ❌ Nicht korrekt. Der Atlas ist das Multi-Map-System von ORB-SLAM3, das mehrere Karten speichert und bei Loop-Closure auch aus verschiedenen Sessions fusionieren kann.
+  </div>
+</div>
+
+<div id="quizSummary" style="display:none; margin-top:1.5rem; padding:1.2rem 1.5rem;
+  background:linear-gradient(135deg,#e8f0fe,#e6f4ea); border-radius:0.75rem;
+  border:2px solid #1a73e8; text-align:center;">
+  <h3 style="margin-top:0;" id="summaryTitle"></h3>
+  <p id="summaryText" style="margin-bottom:0; color:#555;"></p>
+</div>
+
+<script>
+const quizAnswers = {};
+const totalQuestions = 5;
+
+function checkAnswer(btn, isCorrect, qId) {
+  const qDiv = btn.closest('.quiz-question');
+  const allBtns = qDiv.querySelectorAll('.quiz-option');
+  allBtns.forEach(b => b.disabled = true);
+
+  btn.classList.add(isCorrect ? 'correct' : 'wrong');
+
+  document.getElementById(qId + '-correct').style.display = isCorrect ? 'block' : 'none';
+  document.getElementById(qId + '-wrong').style.display   = isCorrect ? 'none' : 'block';
+
+  if (!(qId in quizAnswers)) {
+    quizAnswers[qId] = isCorrect;
+  }
+
+  if (Object.keys(quizAnswers).length === totalQuestions) {
+    const correct = Object.values(quizAnswers).filter(Boolean).length;
+    const summaryDiv = document.getElementById('quizSummary');
+    const title = document.getElementById('summaryTitle');
+    const text = document.getElementById('summaryText');
+
+    summaryDiv.style.display = 'block';
+    title.textContent = `Ergebnis: ${correct}/${totalQuestions} richtig`;
+
+    const msgs = {
+      5: "🏆 Hervorragend! Du hast alle Fragen richtig beantwortet – V-SLAM-Experte!",
+      4: "🎉 Sehr gut! Fast perfekt – noch ein kleiner Blick in die Theorie schadet nicht.",
+      3: "👍 Gut gemacht! Einige Konzepte solltest du nochmals vertiefen.",
+      2: "📚 Es gibt noch Luft nach oben. Schaue dir die Theorieseite nochmals an!",
+      1: "💡 Nicht aufgeben – V-SLAM ist komplex! Starte mit der Einführungsseite.",
+      0: "🔄 Zurück zum Start! Lies dir die Theorie sorgfältig durch."
+    };
+    text.textContent = msgs[correct] || "";
+    summaryDiv.scrollIntoView({behavior: 'smooth', block: 'center'});
+  }
+}
+</script>
+```
+
+## 6. Weiterführende Ressourcen
+
+```{=html}
+<div class="info-grid">
+  <div class="info-card">
+    <div class="card-icon">📄</div>
+    <h4>ORB-SLAM3 Paper</h4>
+    <p>Campos et al. (2021) – "ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial and Multi-Map SLAM"</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">💻</div>
+    <h4>GitHub Repository</h4>
+    <p>Das offizielle ORB-SLAM3 Repository mit Installationsanleitung und Beispielen: UZ-SLAMLab/ORB_SLAM3</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">📊</div>
+    <h4>TUM RGBD Dataset</h4>
+    <p>Standard-Benchmark für V-SLAM mit Ground-Truth-Trajektorien und verschiedenen Schwierigkeitsgraden.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">📖</div>
+    <h4>Multiple View Geometry</h4>
+    <p>Hartley & Zisserman – das Standardwerk für die mathematischen Grundlagen der Computer Vision.</p>
+  </div>
+</div>
+```
+
+## Literatur
+
+::: {#refs}
+:::

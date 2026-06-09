@@ -1,78 +1,237 @@
 ---
-title: "My Awesome Paper Title"
-author: "Your Name"
+title: "V-SLAM: Visuelle Simultane Lokalisierung und Kartierung"
+author: "Gruppe 9 – Visual Computing SS 2026"
+date: today
 format:
   html:
-    theme: cosmo
-jupyter: python3
+    toc: true
+    toc-title: "Inhalt"
 bibliography: references.bib
 ---
 
-## Abstract
-Nach @knuth1984 ist TeX...
-This is a single-file Quarto website hosted on GitHub Pages. It combines Markdown text, LaTeX math, and interactive 3D elements.
+```{=html}
+<div class="hero-banner">
+  <h1>Visual SLAM</h1>
+  <p class="subtitle">Wie sehen autonome Systeme ihre Umgebung – und wo befinden sie sich darin?</p>
+  <div class="badge-row">
+    <span class="hero-badge">🤖 Robotik</span>
+    <span class="hero-badge">🥽 Augmented Reality</span>
+    <span class="hero-badge">🚗 Autonomes Fahren</span>
+    <span class="hero-badge">🗺️ 3D-Kartierung</span>
+    <span class="hero-badge">📷 Computer Vision</span>
+  </div>
+</div>
+```
+
+## Was ist V-SLAM?
+
+**Visual Simultaneous Localization and Mapping (V-SLAM)** ist eine Technologie, die es einem System ermöglicht, mit Hilfe von Kameradaten **gleichzeitig**:
+
+1. eine **Karte** der unbekannten Umgebung aufzubauen, und
+2. die eigene **Position und Orientierung** innerhalb dieser Karte zu bestimmen.
+
+Das klingt trivial – ist es aber nicht. Das System muss die Karte nutzen, um sich zu lokalisieren, und gleichzeitig die Lokalisierung nutzen, um die Karte zu erstellen. Dieses *Henne-und-Ei-Problem* macht SLAM zu einem der klassischen und zugleich anspruchsvollsten Probleme der Robotik [@mur-artal2017].
+
+> **Merksatz:** SLAM löst das Problem der Navigation ohne externe Referenzsysteme (z. B. GPS) – allein auf Basis von Sensordaten.
+
+```{=html}
+<div class="info-grid">
+  <div class="info-card">
+    <div class="card-icon">📷</div>
+    <h4>Visual SLAM</h4>
+    <p>Nutzt ausschließlich Kamerabilder als Eingabe – günstig, leichtgewichtig und allgegenwärtig.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">⚡</div>
+    <h4>Echtzeit-Fähigkeit</h4>
+    <p>Verarbeitung mit geringer Latenz (&lt;50 ms) ist essenziell für reaktive autonome Systeme.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">🗺️</div>
+    <h4>3D-Kartierung</h4>
+    <p>Aufbau einer sparse oder dichten 3D-Punktwolke der Umgebung in Echtzeit.</p>
+  </div>
+  <div class="info-card">
+    <div class="card-icon">🔄</div>
+    <h4>Loop Closure</h4>
+    <p>Erkennung bereits besuchter Orte zur Korrektur akkumulierter Positionsfehler.</p>
+  </div>
+</div>
+```
+
+## Motivation und Anwendungsfälle
+
+Warum ist V-SLAM so wichtig? In vielen realen Szenarien ist GPS nicht verfügbar oder zu ungenau:
+
+| Szenario | Problem | V-SLAM-Lösung |
+|---|---|---|
+| Innennavigation (Robots) | Kein GPS-Signal | Kamerabasierte Positionsschätzung |
+| AR-Headsets (HoloLens, Quest) | Tracking ohne Marker | Inside-out Tracking via V-SLAM |
+| Autonomes Fahren | GPS ungenau in Tunneln/Städten | Visuelles Odometrie + Kartierung |
+| Drohnen | GPS-Ausfall im Innenbereich | Onboard V-SLAM für Stabilisierung |
+| Medizinische Endoskopie | Keine externen Sensoren möglich | SLAM für Instrument-Tracking |
+
+### Praxisbeispiele
 
 ```{python}
-#| label: fig-polar
-#| fig-cap: "A line plot on a polar axis"
+#| label: fig-anwendungen
+#| fig-cap: "V-SLAM Anwendungsgebiete nach Marktrelevanz (2024, geschätzt)"
+#| code-fold: true
 
-import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
 
-r = np.arange(0, 2, 0.01)
-theta = 2 * np.pi * r
-fig, ax = plt.subplots(
-  subplot_kw = {'projection': 'polar'} 
+labels = [
+    "AR/VR Headsets", "Autonome Roboter", "Autonomes Fahren",
+    "Drohnen/UAV", "Medizintechnik", "Smartphones"
+]
+sizes  = [28, 22, 20, 14, 8, 8]
+colors = ["#1a73e8", "#34a853", "#ea4335", "#fbbc04", "#9c27b0", "#00bcd4"]
+explode = [0.05]*6
+
+fig, ax = plt.subplots(figsize=(8, 5))
+wedges, texts, autotexts = ax.pie(
+    sizes, explode=explode, labels=labels, colors=colors,
+    autopct="%1.0f%%", startangle=140,
+    textprops={"fontsize": 10},
+    wedgeprops={"edgecolor": "white", "linewidth": 2}
 )
-ax.plot(theta, r)
-ax.set_rticks([0.5, 1, 1.5, 2])
-ax.grid(True)
+for at in autotexts:
+    at.set_fontsize(9)
+    at.set_color("white")
+    at.set_fontweight("bold")
+
+ax.set_title("V-SLAM Marktanwendungen", fontsize=13, fontweight="bold", pad=15)
+plt.tight_layout()
 plt.show()
 ```
 
-## Methodology
-You can include complex math like $$E = mc^2$$ and immediately follow it with an interactive 3D figure to visualize your results.
+## Geschichte von SLAM
+
+SLAM ist kein neues Problem – es begleitet die Robotik seit über 35 Jahren. Die Entwicklung zeigt einen klaren Trend: von mathematisch eleganten, aber rechenintensiven Filtern hin zu echtzeitfähigen, visuellen Verfahren.
 
 ```{=html}
+<div class="timeline">
 
-<script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <div class="timeline-item">
+    <div class="year">1986</div>
+    <h4>Geburtsstunde von SLAM</h4>
+    <p>Smith, Self & Cheeseman formulieren das SLAM-Problem erstmals mathematisch mit dem Extended Kalman Filter (EKF).</p>
+  </div>
 
-<div style="width: 100%; height: 400px; position: relative; margin: 20px 0;">
-    <canvas id="renderCanvas" style="width: 100%; height: 100%; touch-action: none; border: 1px solid #ddd; display: block; border-radius: 8px;"></canvas>
+  <div class="timeline-item">
+    <div class="year">2002</div>
+    <h4>FastSLAM</h4>
+    <p>Montemerlo et al. nutzen Partikelfilter, um SLAM auf größere Umgebungen zu skalieren – deutlich schneller als EKF-SLAM.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2003</div>
+    <h4>MonoSLAM – Visual SLAM beginnt</h4>
+    <p>Davison et al. zeigen erstmals, dass eine einzige Monokularkamera für Echtzeit-SLAM ausreicht (EKF-basiert).</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2007</div>
+    <h4>PTAM – Parallele Threads</h4>
+    <p>Klein & Murray trennen Tracking und Mapping in parallele Threads – revolutionär für Echtzeitperformance.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2011–2014</div>
+    <h4>Dense SLAM: KinectFusion & LSD-SLAM</h4>
+    <p>Dense, direkte Methoden ermöglichen dichte 3D-Karten – LSD-SLAM nutzt Bildgradienten statt Features.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2015</div>
+    <h4>ORB-SLAM – State of the Art</h4>
+    <p>Mur-Artal et al. veröffentlichen ORB-SLAM: feature-basiert, vollständig, mit Loop Closure und Map Reuse.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2017</div>
+    <h4>ORB-SLAM2 – Multi-Camera</h4>
+    <p>Stereo- und RGB-D-Unterstützung. Wird zum De-facto-Standard in der SLAM-Forschung.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2021</div>
+    <h4>ORB-SLAM3 – Atlas & IMU</h4>
+    <p>Multi-Map-System (Atlas), IMU-Integration und verbessertes Loop Closing – modernster Stand der feature-basierten V-SLAM.</p>
+  </div>
+
+  <div class="timeline-item">
+    <div class="year">2022–heute</div>
+    <h4>Deep Learning SLAM</h4>
+    <p>Neurale Ansätze wie DROID-SLAM, MonoDepth-V-SLAM und NeRF-basierte Kartierung verschieben die Grenzen weiter.</p>
+  </div>
+
 </div>
-
-<script>
-    window.addEventListener('DOMContentLoaded', function() {
-        const canvas = document.getElementById("renderCanvas");
-        if (!canvas) return;
-
-        const engine = new BABYLON.Engine(canvas, true);
-
-        const createScene = function () {
-            const scene = new BABYLON.Scene(engine);
-            scene.clearColor = new BABYLON.Color3(0.95, 0.95, 0.95);
-
-            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI/4, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
-            camera.attachControl(canvas, true);
-
-            const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            
-            const box = BABYLON.MeshBuilder.CreateBox("box", {size: 1.5}, scene);
-            const material = new BABYLON.StandardMaterial("mat", scene);
-            material.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.8);
-            box.material = material;
-
-            scene.registerBeforeRender(function () {
-                box.rotation.y += 0.01;
-                box.rotation.x += 0.005;
-            });
-
-            return scene;
-        };
-
-        const scene = createScene();
-        engine.runRenderLoop(() => scene.render());
-        window.addEventListener("resize", () => engine.resize());
-    });
-</script>
 ```
+
+```{python}
+#| label: fig-geschichte
+#| fig-cap: "Entwicklung der V-SLAM-Algorithmen nach Präzision und Laufzeit (schematisch)"
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+fig, ax = plt.subplots(figsize=(9, 5))
+
+systeme = {
+    "MonoSLAM\n(2003)":   (1.5, 2.0, "filter"),
+    "FastSLAM\n(2002)":   (2.5, 1.8, "filter"),
+    "PTAM\n(2007)":        (3.5, 3.5, "feature"),
+    "LSD-SLAM\n(2014)":   (4.0, 4.2, "direct"),
+    "ORB-SLAM\n(2015)":   (5.0, 5.5, "feature"),
+    "ORB-SLAM2\n(2017)":  (6.0, 6.5, "feature"),
+    "DSO\n(2018)":         (6.5, 5.8, "direct"),
+    "ORB-SLAM3\n(2021)":  (8.0, 8.5, "feature"),
+    "DROID-SLAM\n(2022)": (8.5, 7.5, "deep"),
+}
+
+color_map = {
+    "filter":  "#9c27b0",
+    "feature": "#1a73e8",
+    "direct":  "#34a853",
+    "deep":    "#ea4335",
+}
+
+for name, (x, y, cat) in systeme.items():
+    ax.scatter(x, y, s=160, color=color_map[cat], zorder=5, edgecolors="white", linewidths=1.5)
+    ax.annotate(name, (x, y), textcoords="offset points",
+                xytext=(0, 10), ha="center", fontsize=8, color="#333")
+
+ax.set_xlabel("Zeitliche Entwicklung →", fontsize=10)
+ax.set_ylabel("Relative Genauigkeit / Robustheit →", fontsize=10)
+ax.set_title("Entwicklungsgeschichte der V-SLAM-Algorithmen", fontsize=12, fontweight="bold")
+ax.set_xlim(0.5, 10); ax.set_ylim(0, 10)
+ax.grid(True, alpha=0.3, linestyle="--")
+
+patches = [mpatches.Patch(color=c, label=l) for l, c in
+           [("Filter-basiert", "#9c27b0"), ("Feature-basiert", "#1a73e8"),
+            ("Direkt", "#34a853"), ("Deep Learning", "#ea4335")]]
+ax.legend(handles=patches, loc="upper left", fontsize=9)
+plt.tight_layout()
+plt.show()
+```
+
+## Aufbau dieser Webseite
+
+Diese interaktive Webseite führt dich Schritt für Schritt durch die Welt der visuellen SLAM-Algorithmen:
+
+| Seite | Inhalt |
+|---|---|
+| [📐 Theorie](theorie.qmd) | Mathematische Grundlagen: Kameramodell, Feature-Extraktion, Pose-Schätzung, Bundle Adjustment |
+| [🔬 ORB-SLAM3](orb-slam3.qmd) | Die führende Implementierung im Detail: Architektur, Threads, Atlas, IMU-Integration |
+| [⚖️ Methoden](methoden.qmd) | Vergleich verwandter Verfahren: Filter, direkt, feature-basiert, deep learning |
+| [🎮 Demo & Quiz](demo.qmd) | Interaktive 3D-Visualisierungen, Parameter-Explorer und Lernzielabfrage |
+
+## Literatur und Quellen
+
+::: {#refs}
+:::
