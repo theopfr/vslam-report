@@ -3,36 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  /* ===== RESET ===== */
+/* ===== RESET ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ====================================================================
+   SINGLE SOURCE OF TRUTH FOR GEOMETRY
+   --------------------------------------------------------------------
+   Every section has the exact same fixed height. The whole component
+   height is therefore deterministic:
+
+       component height = (--pad-y * 2) + (--section-h * 6)
+
+   This MUST match the iframe height set in index.qmd:
+       2 * 24px + 6 * 160px = 1008px
+   ==================================================================== */
+:root {
+  --section-h: 160px;   /* fixed height of EVERY section */
+  --pad-y: 24px;        /* vertical padding of the .tl wrapper */
+  --sections: 6;
+}
 
 body {
   font-family: 'IBM Plex Mono', monospace;
-  background-color: #0b0f0e;
+  background-color: transparent;
   color: #cfe7d8;
   letter-spacing: 0.06em;
   position: relative;
 }
 
-/* optional: same grid overlay vibe as global.css */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: radial-gradient(
-    rgba(0, 255, 136, 0.12) 1px,
-    transparent 1px
-  );
-  background-size: 22px 22px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ===== TIMELINE LAYOUT ===== */
+/* ===== LAYOUT ===== */
 .tl {
   display: flex;
   gap: 0;
-  padding: 1.5rem;
+  padding: var(--pad-y) 1.5rem;
   max-width: 750px;
   position: relative;
   z-index: 1;
@@ -40,30 +43,31 @@ body::before {
 
 /* ===== TRACK ===== */
 .track-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: block;
   width: 32px;
   flex-shrink: 0;
   position: relative;
   margin-right: 1.5rem;
+
+  /* exact, deterministic height: one full stack of sections */
+  height: calc(var(--section-h) * var(--sections));
 }
 
 .track-bg {
   position: absolute;
   top: 0;
-  bottom: 0;
+  /* stop the line exactly at the center of the last node:
+     (sections - 0.5) * section-h  →  no stub past the final node */
+  height: calc(var(--section-h) * (var(--sections) - 0.5));
   left: 50%;
   transform: translateX(-50%);
   width: 2px;
 
-  /* stronger inactive visibility */
   background: linear-gradient(
     to bottom,
     rgba(207, 231, 216, 0.35),
     rgba(125, 255, 178, 0.10)
   );
-
   box-shadow: 0 0 6px rgba(0, 255, 136, 0.08);
 }
 
@@ -73,13 +77,37 @@ body::before {
   left: 50%;
   transform: translateX(-50%);
   width: 2px;
-
-  background: #7dffb2;
   height: 0;
 
+  background: #7dffb2;
   box-shadow:
     0 0 10px rgba(0, 255, 136, 0.35),
     0 0 18px rgba(0, 255, 136, 0.15);
+  transition: height 0.18s ease;
+}
+
+/* ===== NODES (one per section, always visible) ===== */
+.node {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  z-index: 5;
+
+  /* inactive (unvisited) look */
+  background: #0b0f0e;
+  border: 1.5px solid rgba(207, 231, 216, 0.35);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.node.active {
+  background: #7dffb2;
+  border-color: #7dffb2;
+  box-shadow:
+    0 0 8px rgba(0, 255, 136, 0.55),
+    0 0 16px rgba(0, 255, 136, 0.25);
 }
 
 /* ===== HANDLE ===== */
@@ -98,7 +126,7 @@ body::before {
   user-select: none;
 
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
-  transition: transform 0.08s ease, box-shadow 0.2s ease;
+  transition: top 0.18s ease, box-shadow 0.2s ease;
 }
 
 .handle:active {
@@ -107,17 +135,17 @@ body::before {
   box-shadow: 0 0 14px rgba(0, 255, 136, 0.35);
 }
 
-/* ===== STEPS ===== */
+/* ===== SECTIONS ===== */
 .steps-col {
   flex: 1;
 }
 
-/* keep layout stable (no fade flicker) */
+/* each section: FIXED height, content vertically centered */
 .step {
+  height: var(--section-h);
   display: flex;
   gap: 1.25rem;
-  margin-bottom: 2.5rem;
-  align-items: flex-start;
+  align-items: center;
 
   opacity: 0;
   transition: opacity 0.25s ease;
@@ -132,16 +160,10 @@ body::before {
   width: 170px;
   height: 120px;
   flex-shrink: 0;
-
   border-radius: 6px;
-
   background: #def1eb;
-
-  /* neon edge */
   border: 1px solid rgb(0, 255, 136);
   overflow: hidden;
-
-  transition: all 0.2s ease;
 }
 
 .step-img svg {
@@ -151,12 +173,8 @@ body::before {
 }
 
 /* ===== TEXT ===== */
-.step-text {
-  flex: 1;
-  padding-top: 2px;
-}
+.step-text { flex: 1; }
 
-/* small label */
 .step-num {
   font-size: 11px;
   color: rgba(207, 231, 216, 0.6);
@@ -165,7 +183,6 @@ body::before {
   letter-spacing: 0.08em;
 }
 
-/* main title (matches global headings style) */
 .step-title {
   font-size: 15px;
   font-weight: 600;
@@ -173,11 +190,9 @@ body::before {
   margin-bottom: 6px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.12);
 }
 
-/* body text */
 .step-desc {
   font-size: 13px;
   color: #cfe7d8;
@@ -192,10 +207,11 @@ body::before {
   <div class="track-col" id="track-col">
     <div class="track-bg"></div>
     <div class="track-fill" id="track-fill"></div>
+    <!-- nodes + handle injected by JS -->
     <div class="handle" id="handle"></div>
   </div>
 
-  <!-- steps -->
+  <!-- sections -->
   <div class="steps-col" id="steps-col"></div>
 </div>
 
@@ -338,115 +354,77 @@ const steps = [
   { label: "Point cloud",      title: "Sparse point cloud map",   desc: "All triangulated landmarks accumulate into a sparse 3D map. The sequence of estimated poses forms the camera trajectory. Loop closure corrects drift when a place is revisited." },
 ];
 
-const n = steps.length;
-const stepsCol = document.getElementById('steps-col');
-const trackCol = document.getElementById('track-col');
-const trackFill = document.getElementById('track-fill');
-const handle = document.getElementById('handle');
+/* ---- geometry: read the fixed section height straight from CSS ---- */
+const SECTION_H = parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue('--section-h')
+);
+const N = steps.length;
 
-// Build step rows
+/* center of section i (relative to the track-col / steps-col top) */
+const nodeCenter = i => (i + 0.5) * SECTION_H;
+
+const stepsCol  = document.getElementById('steps-col');
+const trackCol  = document.getElementById('track-col');
+const trackFill = document.getElementById('track-fill');
+const handle    = document.getElementById('handle');
+
+/* build the fixed-height sections */
 stepsCol.innerHTML = steps.map((s, i) => `
   <div class="step" id="step-${i}">
     <div class="step-img">${svgs[i]}</div>
     <div class="step-text">
-      <div class="step-num">Step ${i + 1} of ${n}</div>
+      <div class="step-num">Step ${i + 1} of ${N}</div>
       <div class="step-title">${s.title}</div>
       <div class="step-desc">${s.desc}</div>
     </div>
   </div>
 `).join('');
 
-// After DOM is ready, compute positions
-function getStepCenters() {
-  const trackRect = trackCol.getBoundingClientRect();
-  return Array.from({ length: n }, (_, i) => {
-    const el = document.getElementById('step-' + i);
-    const r = el.getBoundingClientRect();
-    // midpoint of each step row relative to track top
-    return r.top - trackRect.top + r.height / 2;
-  });
+/* build the always-visible nodes, perfectly aligned to section centers */
+const nodes = [];
+for (let i = 0; i < N; i++) {
+  const node = document.createElement('div');
+  node.className = 'node';
+  node.style.top = nodeCenter(i) + 'px';
+  trackCol.insertBefore(node, handle);
+  nodes.push(node);
 }
 
-function getTrackHeight() {
-  return trackCol.getBoundingClientRect().height;
-}
-
-const TRACK_INSET = -70; 
-
-let revealed = 0; // how many steps are revealed
+let revealed = 1; // number of visited sections (1..N)
 
 function reveal(count) {
-  // count: 0 = none, n = all
-  count = Math.max(0, Math.min(n, count));
+  count = Math.max(1, Math.min(N, count));
   revealed = count;
 
-  const centers = getStepCenters();
-  const trackH = getTrackHeight();
+  const y = nodeCenter(count - 1); // last visited node = current position
 
-  // handle position: before first step = top, after last = bottom
-  let handleY;
-  if (count === 0) {
-    handleY = centers[0] - (centers[1] - centers[0]) * 0.5;
-  } else if (count >= n) {
-    handleY = centers[n - 1] + (centers[n - 1] - centers[n - 2]) * 0.3;
-  } else {
-    // between step count-1 and count
-    handleY = (centers[count - 1] + centers[count]) / 2;
-  }
+  handle.style.top    = y + 'px';
+  trackFill.style.height = y + 'px';
 
-  handleY = Math.max(10, Math.min(trackH - 10, handleY));
-  
-  const r = trackCol.getBoundingClientRect();
-  const minY = TRACK_INSET;
-  const maxY = r.height - TRACK_INSET;
-  const usableH = maxY - minY;
-
-  handle.style.top = (minY + handleY) + 'px';
-  trackFill.style.height = (minY + handleY) + 'px';
-
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < N; i++) {
+    nodes[i].classList.toggle('active', i < count);
     document.getElementById('step-' + i).classList.toggle('visible', i < count);
   }
 }
 
-function yFromEvent(e) {
+/* map a pointer Y (within the track) to the nearest section index */
+function countFromY(e) {
   const r = trackCol.getBoundingClientRect();
-
-  const rawY = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
-
-  // inset-aware usable range
-  const minY = TRACK_INSET;
-  const maxY = r.height - TRACK_INSET;
-
-  return Math.max(minY, Math.min(maxY, rawY));
-}
-
-function snapCount(y) {
-  const centers = getStepCenters();
-  // find how many steps should be revealed based on handle y
-  // if y is before midpoint of first step: 0
-  // if y is past midpoint between step i-1 and i: reveal i
-  let count = 0;
-  for (let i = 0; i < n; i++) {
-    const threshold = i === 0
-      ? centers[0] * 0.6
-      : (centers[i - 1] + centers[i]) / 2;
-    if (y >= threshold) count = i + 1;
-  }
-  return count;
+  const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  const idx = Math.round(y / SECTION_H - 0.5); // nearest node
+  return Math.max(0, Math.min(N - 1, idx)) + 1;
 }
 
 let dragging = false;
 handle.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
 handle.addEventListener('touchstart', () => dragging = true, { passive: true });
-document.addEventListener('mousemove', e => { if (dragging) reveal(snapCount(yFromEvent(e))); });
-document.addEventListener('touchmove', e => { if (dragging) reveal(snapCount(yFromEvent(e))); }, { passive: true });
+document.addEventListener('mousemove', e => { if (dragging) reveal(countFromY(e)); });
+document.addEventListener('touchmove', e => { if (dragging) reveal(countFromY(e)); }, { passive: true });
 document.addEventListener('mouseup', () => dragging = false);
 document.addEventListener('touchend', () => dragging = false);
-trackCol.addEventListener('click', e => reveal(snapCount(yFromEvent(e))));
+trackCol.addEventListener('click', e => reveal(countFromY(e)));
 
-// Init after layout
-setTimeout(() => reveal(1), 50);
+reveal(1);
 </script>
 </body>
 </html>

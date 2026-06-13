@@ -2,3 +2,5 @@
 **/*.quarto_ipynb*
 .venv
 _site
+
+**/*.quarto_ipynb

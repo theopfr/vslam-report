@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  background: transparent;
+  color: #cfe7d8;
+  letter-spacing: 0.04em;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* ===== STAGE ===== */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid rgb(0, 255, 136);
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(125, 255, 178, 0.04) 0px,
+      rgba(125, 255, 178, 0.04) 10px,
+      transparent 10px,
+      transparent 20px
+    ),
+    #0b0f0e;
+  box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
+}
+
+video { display: none; }
+
+canvas#out {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* placeholder / idle message centered on the stage */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  text-align: center;
+  padding: 1.5rem;
+  z-index: 2;
+}
+
+.overlay.hidden { display: none; }
+
+.overlay p {
+  font-size: 13px;
+  color: rgba(207, 231, 216, 0.7);
+  line-height: 1.6;
+  max-width: 360px;
+}
+
+/* ===== HUD (count badge) ===== */
+.hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  font-size: 12px;
+  color: #7dffb2;
+  background: rgba(11, 15, 14, 0.65);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 5px;
+  padding: 4px 9px;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.25);
+  display: none;
+}
+
+.hud.show { display: block; }
+
+/* ===== BUTTON ===== */
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0b0f0e;
+  background: #7dffb2;
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: box-shadow 0.2s ease, transform 0.08s ease, background 0.2s ease;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+}
+
+.btn:hover:not(:disabled) {
+  box-shadow: 0 0 18px rgba(0, 255, 136, 0.55);
+}
+
+.btn:active:not(:disabled) { transform: scale(0.97); }
+
+.btn:disabled {
+  background: rgba(125, 255, 178, 0.25);
+  color: rgba(11, 15, 14, 0.6);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.status {
+  font-size: 12px;
+  color: rgba(207, 231, 216, 0.55);
+}
+
+.status.err { color: #ff8a8a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="out"></canvas>
+
+    <div class="hud" id="hud">ORB keypoints: 0</div>
+
+    <div class="overlay" id="overlay">
+      <p>Live ORB feature extraction running in your browser. Click below to open
+         your front camera — detected keypoints are drawn on top of the feed.
+         Nothing leaves your device.</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="startBtn" disabled>Loading OpenCV…</button>
+    <span class="status" id="status"></span>
+  </div>
+</div>
+
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+<script>
+const video    = document.getElementById('video');
+const canvas   = document.getElementById('out');
+const ctx      = canvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const overlay  = document.getElementById('overlay');
+const hud      = document.getElementById('hud');
+const statusEl = document.getElementById('status');
+
+const PROC_W = 640;   // processing width (height derived from camera aspect)
+let cvReady = false;
+let running = false;
+let stream  = null;
+
+// OpenCV reusable objects (allocated once camera starts)
+let orb, src, gray, keypoints, mask, raf;
+
+function setStatus(msg, isErr = false) {
+  statusEl.textContent = msg || '';
+  statusEl.classList.toggle('err', !!isErr);
+}
+
+// ---- wait for the OpenCV runtime ----
+function waitForCv() {
+  if (window.cv && cv.Mat) {
+    onCvReady();
+  } else if (window.cv) {
+    cv['onRuntimeInitialized'] = onCvReady;
+  } else {
+    setTimeout(waitForCv, 100);
+  }
+}
+function onCvReady() {
+  cvReady = true;
+  startBtn.disabled = false;
+  startBtn.textContent = 'Start camera';
+}
+waitForCv();
+
+startBtn.addEventListener('click', () => {
+  if (!running) start();
+  else stop();
+});
+
+async function start() {
+  if (!cvReady) return;
+  setStatus('Requesting camera…');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user' },
+      audio: false
+    });
+  } catch (err) {
+    setStatus('Camera access denied or unavailable.', true);
+    return;
+  }
+
+  video.srcObject = stream;
+  await video.play();
+
+  // size the processing/display canvas to the camera aspect ratio
+  const ar = video.videoHeight / video.videoWidth || 0.75;
+  canvas.width  = PROC_W;
+  canvas.height = Math.round(PROC_W * ar);
+
+  // allocate OpenCV objects
+  orb       = new cv.ORB(500);                // up to 500 features
+  src       = new cv.Mat(canvas.height, canvas.width, cv.CV_8UC4);
+  gray      = new cv.Mat();
+  keypoints = new cv.KeyPointVector();
+  mask      = new cv.Mat();
+
+  running = true;
+  overlay.classList.add('hidden');
+  hud.classList.add('show');
+  startBtn.textContent = 'Stop camera';
+  setStatus('');
+  loop();
+}
+
+function loop() {
+  if (!running) return;
+
+  // mirror the feed so it reads like a selfie; keypoints stay aligned
+  // because we detect on the already-mirrored canvas pixels.
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  try {
+    src.data.set(ctx.getImageData(0, 0, canvas.width, canvas.height).data);
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+    keypoints.delete();
+    keypoints = new cv.KeyPointVector();
+    orb.detect(gray, keypoints, mask);
+
+    const n = keypoints.size();
+    ctx.fillStyle = 'rgba(125, 255, 178, 0.55)';
+    for (let i = 0; i < n; i++) {
+      const kp = keypoints.get(i);
+      ctx.beginPath();
+      ctx.arc(kp.pt.x, kp.pt.y, 3, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    hud.textContent = 'ORB keypoints: ' + n;
+  } catch (e) {
+    // transient frame error — keep going
+  }
+
+  raf = requestAnimationFrame(loop);
+}
+
+function stop() {
+  running = false;
+  if (raf) cancelAnimationFrame(raf);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+
+  // free OpenCV memory
+  [orb, src, gray, keypoints, mask].forEach(o => { try { o && o.delete(); } catch (_) {} });
+  orb = src = gray = keypoints = mask = undefined;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  overlay.classList.remove('hidden');
+  hud.classList.remove('show');
+  startBtn.textContent = 'Start camera';
+}
+
+window.addEventListener('pagehide', stop);
+</script>
+</body>
+</html>

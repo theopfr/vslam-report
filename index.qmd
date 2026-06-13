@@ -1,5 +1,6 @@
 ---
-title: "Visual SLAM (Simultaneous Location And Mapping)"
+title: "vSLAM"
+subtitle: "An interactive guide to Visual Simultaneous Location And Mapping"
 author: "Theodor Peifer, Amelie Hora, Japheth Legesse"
 jupyter: python3
 bibliography: references.bib
@@ -13,10 +14,14 @@ Visual SLAM (Simultaneous Localization and Mapping) is a computer vision techniq
 Visual SLAM estimates camera motion and reconstructs a 3D map simultaneously. There are many different algorithms and approaches yet the general pipeline looks like this:
 
 ```{=html}
-<iframe src="pages/html/vslam_pipeline.html" width="100%" height="1025px" frameborder="0" scrolling="no"></iframe>
+<iframe src="pages/html/vslam_pipeline.html" width="100%" height="975px" frameborder="0" scrolling="no"></iframe>
 ```
 
+In the next section we will dive deeper into the specific steps.
+
 ## Pipeline
+
+#### 1. Feature Extraction and Mapping
 
 {{< include pages/01-features.qmd >}}
 
