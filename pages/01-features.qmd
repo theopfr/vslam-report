@@ -1,5 +1,21 @@
 Feature extraction finds distinctive, repeatable points in an image, corners and blobs that can be re-identified across frames. Below you can run an ORB feature extractor live on your own camera feed, directly in the browser:
 
 ```{=html}
-<iframe src="pages/html/orb_camera.html" width="100%" height="640px" frameborder="0" scrolling="no" allow="camera"></iframe>
+<iframe src="pages/html/orb_camera.html" width="100%" height="900px" frameborder="0" scrolling="no" allow="camera"></iframe>
 ```
+
+#### How it works
+
+The demo runs **ORB** (Oriented FAST and Rotated BRIEF), a fast, license-free feature detector and descriptor designed to run in real time on modest hardware. It combines two classic algorithms:
+
+- **FAST** (Features from Accelerated Segment Test) locates the keypoints. For each pixel it inspects a ring of 16 surrounding pixels and flags the pixel as a corner if a long enough contiguous arc of that ring is *all brighter* or *all darker* than the center by more than a set threshold. This is what the green dots mark.
+- **BRIEF** (Binary Robust Independent Elementary Features) then describes each keypoint as a compact binary string by comparing the brightness of pre-defined pixel pairs around it. ORB adds an orientation estimate so the descriptor is rotation-invariant, and detects features across an **image pyramid** (progressively downscaled copies of the frame) so the same point can be found whether it is near or far. The demo only draws the keypoints, the descriptors are what later stages use to match features between frames.
+
+#### The four parameters
+
+- **Max features** (`nfeatures`) — the upper limit on how many keypoints are kept per frame. After detection, ORB ranks candidates by corner strength (Harris score) and retains only the best *N*.
+- **FAST threshold** (`fastThreshold`) — the sensitivity of the corner test above. Low values accept faint intensity changes, producing many points (including noise); high values keep only strong, high-contrast corners.
+- **Scale factor** (`scaleFactor`) — the size ratio between consecutive pyramid levels. Values near `1.1` shrink the image gently for fine-grained scale coverage (more robust, slower); larger values like `2.0` take coarse jumps (faster, may miss in-between scales).
+- **Pyramid levels** (`nlevels`) — how many downscaled copies make up the pyramid. More levels widen the range of feature sizes ORB can detect, at greater compute cost. With a single level, scale invariance is lost.
+
+Together these trade off **quantity and sensitivity** (max features, FAST threshold) against **scale robustness and speed** (scale factor, pyramid levels). Try dragging the FAST threshold low to flood the view with points, then high to isolate only the strongest corners.
