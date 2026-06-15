@@ -13,15 +13,16 @@ canvas#stage {
   background: #0b0f0e; cursor: grab; box-shadow: 0 0 18px rgba(0,255,136,0.08);
 }
 canvas#stage:active { cursor: grabbing; }
-.hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
+.hint { text-align: left; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
 .controls { display: flex; justify-content: center; margin-top: 0.9rem; }
 .reset { font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(207,231,216,0.6); background: transparent; border: 1px solid rgba(207,231,216,0.2); border-radius: 6px; padding: 0.55rem 0.9rem; cursor: pointer; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <canvas id="stage" width="720" height="362"></canvas>
-  <div class="hint">drag the corner to move it · drag outside the patch circle to rotate · keep the circle out of the patch to stay matched</div>
+  <canvas id="stage" width="720" height="344"></canvas>
+  <div class="hint">- how to use: drag the corner to move it, drag outside the patch circle to rotate</div>
+  <div class="hint">- the bit rows are the two descriptors of how alike the areas inside the two green circles are</div>
   <div class="controls"><button class="reset" id="reset">Reset</button></div>
 </div>
 
@@ -48,6 +49,13 @@ const off = document.createElement('canvas'); off.width=PS; off.height=PS;
 const octx = off.getContext('2d');
 const clampi = x => Math.max(0, Math.min(PS-1, Math.round(x)));
 
+// fixed Gaussian sensor noise, shared by both images (so aligned patches still
+// match exactly). A descriptor deadband (MARGIN) keeps flat areas stable, so the
+// noise only flips a few near-tie bits as you drag/rotate — the match holds.
+const SIGMA = 5, MARGIN = 22;
+const noiseField = new Float32Array(PS*PS);
+for (let i=0; i<PS*PS; i++) noiseField[i] = randn() * SIGMA;
+
 // the scene: a dark object whose corner is the feature (at cx,cy, rotated by ang)
 // + the fixed top-left circle. Returns a grayscale buffer.
 function makeScene(cx, cy, ang) {
@@ -59,7 +67,8 @@ function makeScene(cx, cy, ang) {
     let dark = (rx>0 && ry>0);                                  // the corner (90° wedge)
     const ex=x-CIRC.x, ey=y-CIRC.y;
     if (ex*ex+ey*ey <= CIRC.r*CIRC.r) dark = true;             // the fixed circle
-    g[y*PS+x] = dark ? DARK : LIGHT;
+    g[y*PS+x] = (dark ? DARK : LIGHT) + noiseField[y*PS+x];
+
   }
   return g;
 }
@@ -78,7 +87,7 @@ function descriptor(g, cx, cy, theta) {
     const p=PAIRS[i];
     const ax=p.a[0]*c-p.a[1]*s, ay=p.a[0]*s+p.a[1]*c;
     const bx=p.b[0]*c-p.b[1]*s, by=p.b[0]*s+p.b[1]*c;
-    bits[i] = gray(g,cx+ax,cy+ay) < gray(g,cx+bx,cy+by) ? 1 : 0;
+    bits[i] = (gray(g,cx+bx,cy+by) - gray(g,cx+ax,cy+ay)) > MARGIN ? 1 : 0;
   }
   return bits;
 }
@@ -117,7 +126,7 @@ function render() {
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle='rgba(207,231,216,0.6)'; ctx.font='11px IBM Plex Mono, monospace';
-  ctx.fillText('left image  (drag the corner)', LX, PY-7);
+  ctx.fillText('image (drag the corner)', LX, PY-7);
   ctx.fillText('reference', RX, PY-7);
   drawScene(gL, LX, PY); drawScene(gR, RX, PY);
 
@@ -134,15 +143,10 @@ function render() {
   ctx.fillText(matched ? 'MATCH' : 'NO MATCH', 360, PY+SIZE/2+4);
   ctx.textAlign='left';
 
-  // caption: what the bit rows mean
-  ctx.fillStyle='rgba(207,231,216,0.75)'; ctx.font='11px IBM Plex Mono, monospace'; ctx.textAlign='center';
-  ctx.fillText('the bit rows are the two descriptors — how alike the areas inside the two green circles are', 360, 250);
-  ctx.textAlign='left';
-
-  bitRow(dL, diff, 268, 'left');
-  bitRow(dR, diff, 300, 'ref');
+  bitRow(dL, diff, 252, 'left');
+  bitRow(dR, diff, 284, 'right');
   ctx.fillStyle='rgba(207,231,216,0.5)'; ctx.font='10px IBM Plex Mono, monospace'; ctx.textAlign='center';
-  ctx.fillText('green = 1 · empty = 0 · red = differing bit', 360, 350); ctx.textAlign='left';
+  ctx.fillText('green = 1 · empty = 0 · red = differing bit', 360, 334); ctx.textAlign='left';
 }
 
 // ---- drag inside the patch = move the corner; outside = rotate ----
