@@ -1,0 +1,16 @@
+Triangulation gives 3D points from *one* pair of frames. A real sequence has hundreds of frames, and SLAM simply keeps doing this: for every new frame it estimates the camera's pose, triangulates the features it shares with earlier frames, and drops the new 3D points into one shared **world coordinate frame**. The accumulated result is the **map** — together with the chain of poses, which is the camera's **trajectory**.
+
+Play the sequence below to watch it form: the camera moves along its path (green trail), and each step adds freshly triangulated points (green) to the growing cloud (blue). Drag to orbit the finished map.
+
+```{=html}
+<iframe src="pages/html/pointcloud.html" width="100%" height="700" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```
+
+#### Why "sparse"?
+
+The map holds only the **feature points** — the corners ORB latched onto back in the first step — so it's a thin scattering of 3D points, not a solid surface. That's deliberate: a few hundred well-tracked points per frame are enough to localise the camera and reason about the scene's geometry, while staying cheap enough to run in real time. (Denser reconstructions exist, but they cost far more compute and aren't needed just to know *where the camera is*.)
+
+This sparse cloud plus the camera trajectory is the actual output of visual SLAM — **a map of the world and the camera's path through it**, both recovered from nothing but a moving camera's images. Two loose ends are worth naming:
+
+- **Scale.** As noted in the motion step, a single camera can't recover absolute scale — the whole map and trajectory are correct in shape but sized by an arbitrary factor, unless an extra cue (a known object size, IMU, or stereo rig) pins it down.
+- **Drift.** Each pose is chained onto the previous one, so tiny errors accumulate over a long trajectory. Real systems correct this with **bundle adjustment** (jointly refining all poses and points) and **loop closure** (recognising a previously seen place and snapping the map back into agreement).
