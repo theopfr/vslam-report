@@ -141,19 +141,14 @@ body {
   border-radius: 50%;
   background: #0b0f0e;
   border: 1px solid #7dffb2;
-  cursor: grab;
+  cursor: default;
   z-index: 10;
   top: 0;
   user-select: none;
+  pointer-events: none;
 
   box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
   transition: top 0.18s ease, box-shadow 0.2s ease;
-}
-
-.handle:active {
-  cursor: grabbing;
-  transform: translate(-50%, -50%) scale(1.25);
-  box-shadow: 0 0 14px rgba(0, 255, 136, 0.35);
 }
 
 /* ===== SECTIONS ===== */
@@ -434,24 +429,34 @@ function reveal(count) {
   }
 }
 
-/* map a pointer Y (within the track) to the nearest section index */
-function countFromY(e) {
-  const r = trackCol.getBoundingClientRect();
-  const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
-  const idx = Math.round(y / SECTION_H - 0.5); // nearest node
-  return Math.max(0, Math.min(N - 1, idx)) + 1;
+/* ---- reveal driven by the parent page's scroll position ----
+   the component lives in a same-origin iframe, so it can read where it sits in
+   the parent viewport; each step lights up once its centre scrolls past a
+   trigger line partway down the screen. */
+const inIframe = !!window.frameElement;
+const TRIGGER = 0.62;   // fraction down the viewport where a step activates
+
+function countFromScroll() {
+  const frameTop = window.frameElement.getBoundingClientRect().top;
+  const vh = window.parent.innerHeight || window.innerHeight;
+  const line = vh * TRIGGER;
+  let count = 0;
+  for (let i = 0; i < N; i++) {
+    const r = document.getElementById('step-' + i).getBoundingClientRect();
+    if (frameTop + r.top + r.height / 2 <= line) count++;
+  }
+  return count;
 }
 
-let dragging = false;
-handle.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
-handle.addEventListener('touchstart', () => dragging = true, { passive: true });
-document.addEventListener('mousemove', e => { if (dragging) reveal(countFromY(e)); });
-document.addEventListener('touchmove', e => { if (dragging) reveal(countFromY(e)); }, { passive: true });
-document.addEventListener('mouseup', () => dragging = false);
-document.addEventListener('touchend', () => dragging = false);
-trackCol.addEventListener('click', e => reveal(countFromY(e)));
+function onScroll() { reveal(countFromScroll()); }
 
-reveal(1);
+if (inIframe) {
+  window.parent.addEventListener('scroll', onScroll, { passive: true });
+  window.parent.addEventListener('resize', onScroll, { passive: true });
+  onScroll();
+} else {
+  reveal(N);   // opened standalone — just show everything
+}
 </script>
 </body>
 </html>
