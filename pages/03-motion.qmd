@@ -1,37 +1,55 @@
-Now that we have matched features, we can work out how the **camera moved** between the two frames — how it **rotated** and which way it **translated**. (We assume the camera is *calibrated*: its intrinsics **K** are known, which is what lets us recover real motion rather than just a distorted version of it.)
+Now that we have matched features, we can work out how the **camera moved** between two frames. First, one requirement.
 
-The trick is **epipolar geometry**. A feature seen in one image doesn't reveal its depth — it could lie anywhere along the ray from the camera through that pixel. But seen from the *other* camera, that whole ray collapses to a single **line**, so the matching feature must lie somewhere on it. The 3D scene below shows the setup: the same camera at two positions, **A** ($F_{t-1}$) and **B** ($F_t$), each imaging a few points. Drag to orbit, and move camera B with the sliders.
+#### The camera has to be calibrated
+
+To recover *real* motion we need a **calibrated** camera - one whose internal optics we've measured in advance. Calibration comes down to two things, gathered into the intrinsic matrix **K**:
+
+- the **focal length** $f$ - how strongly the lens magnifies, i.e. how a pixel offset relates to an angle in the scene;
+- the **principal point** $(c_x, c_y)$ - where the optical axis actually pierces the image (usually near the centre).
+
+$$
+K = \begin{bmatrix} f & 0 & c_x \\ 0 & f & c_y \\ 0 & 0 & 1 \end{bmatrix}
+$$
+
+With **K** known, a pixel can be turned back into a real-world direction - and that's what lets us recover true motion instead of a distorted version of it.
+
+#### What we're looking for
+
+Between frame **A** ($F_{t-1}$) and frame **B** ($F_t$) the camera has moved, and that motion is just two things:
+
+- a **rotation R** - how the camera turned;
+- a **translation t** - which way it shifted.
+
+The scene below shows exactly that: the same camera at two positions, A and B. Drag to orbit, and move B with the sliders - the white arrow is **t** and the white arc is **R**, the two quantities we're after. The **×** on each image plane marks where the *same* feature point lands in each view - that's a matched pair from the previous step.
 
 ```{=html}
-<iframe src="pages/html/epipolar_3d.html" width="100%" height="676" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+<iframe src="pages/html/epipolar_3d.html" width="100%" height="740" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
 ```
 
-The two things we want — the rotation and the translation between A and B — are bundled into one 3×3 matrix, the **essential matrix E**:
+#### Packing R and t into the essential matrix E
+
+R and t are usually bundled into one 3×3 matrix, the **essential matrix E**:
 
 $$
 E = [\,t\,]_\times \, R
 $$
 
-Here **R** is the **rotation** between the two cameras, and $[\,t\,]_\times$ is the **translation** $t$ written as a matrix:
+where **R** is the rotation and $[\,t\,]_\times$ is the translation $t$ written as a matrix:
 
 $$
 [\,t\,]_\times =
 \begin{bmatrix} 0 & -t_z & t_y \\ t_z & 0 & -t_x \\ -t_y & t_x & 0 \end{bmatrix}
 $$
 
-In the 3D scene that's exactly it: **R** is the difference in the two cameras' orientation, and **t** is the **baseline** — the dashed line from A to B. So E is just a compact way of writing *where B sits relative to A*.
-
-#### Finding E from the matches
-
-We never measure R and t directly — all we have are the **×'s**: the pixel where each camera sees the same feature. A match gives a point $x$ in frame A and its partner $x'$ in frame B, and every correct match obeys one simple relation:
+So E is just a compact way of writing *where B sits relative to A*. We never measure R and t directly - all we have are the **×'s**, the pixel where each camera sees the same feature. A match gives a point $x$ in frame A and its partner $x'$ in frame B, and every correct match obeys one simple relation:
 
 $$
 x'^{\top}\, E \, x = 0
 $$
 
-In words: $x'$ must lie on the **epipolar line** of $x$ — the line from the visualization. Each match gives one such equation, so with about **eight matches** there are enough equations to solve for E. Once E is known, it **splits back into R and t** — the camera's motion, which we then chain together to track the camera and hand to triangulation for the 3D map.
+Each match gives one such equation, so with about **eight matches** there are enough to solve for E. Once E is known, it **splits back into R and t** - the motion we were after, which we chain across frames to track the camera and hand to triangulation for the 3D map.
 
-One catch: from a single camera the *length* of $t$ can't be recovered, only its direction — so the trajectory and map come out correct in shape but at an arbitrary overall **scale**.
+One catch: from a single camera the *length* of $t$ can't be recovered, only its direction - so the trajectory and map come out correct in shape but at an arbitrary overall **scale**.
 
 ```{=html}
 <!-- Interactive epipolar-estimation explorer (hidden for now; source kept at pages/html/epipolar.html)

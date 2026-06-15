@@ -6,11 +6,13 @@ Feature detection finds distinctive, repeatable points in an image, corners and 
 
 #### How it works
 
+The demo above runs **ORB** (Oriented FAST and Rotated BRIEF), a fast combination of a corner detector (**FAST**) and a binary descriptor (**BRIEF**). This feature detection method consists of four distinct steps, as shown in the diagram below:
+
 ```{=html}
 <img src="assets/images/orb-pipeline.svg" alt="ORB feature detection pipeline: FAST corner test, intensity-centroid orientation, rotated BRIEF descriptor, and scale pyramid" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;">
 ```
 
-The demo runs **ORB** (Oriented FAST and Rotated BRIEF), a fast, license-free combination of a corner *detector* (**FAST**) and a binary *descriptor* (**BRIEF**), run across an image pyramid. The four steps above:
+We will go through the four steps to create an understanding of each of them.
 
 1. **FAST Corner test:** Look at a ring of 16 pixels around a candidate pixel $p$. Each ring pixel of intensity $I_x$ is classified against the centre intensity $I_p$ and a threshold $t$:
 $$
@@ -22,9 +24,13 @@ S_x = \begin{cases}
 $$
 where $I_p$ is the candidate's intensity and $t$ a fixed threshold (the `FAST THRESHOLD` slider). $p$ is a corner if $\geq 9$ contiguous ring pixels are *all brighter* or *all darker*. Survivors are ranked by Harris corner score and the best $N$ (the `MAX FEATURES` slider) are kept.
 
-![Figure: The FAST segment test (from the original FAST paper): the 16-pixel ring around candidate $p$ is checked along the highlighted arc - if a contiguous run of pixels $S_{x_i \to x_j}$ is *all brighter* or *all darker* than $p$, then $p$ is a corner.](assets/images/corner_test.png){width=66% fig-align="center"}
+
+```{=html}
+<img src="assets/images/corner-test.svg" alt="ORB feature detection pipeline: FAST corner test, intensity-centroid orientation, rotated BRIEF descriptor, and scale pyramid" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;transform:scale(0.75);">
+```
+
 
 2. **Corner Orientation:** Each corner is assigned an angle using the **intensity centroid** method, which points from the patch centre toward its brightest side. Steering the descriptor by this angle $\theta$ is what makes ORB rotation-invariant.
-3. **BRIEF Descriptor:** Take the $31\times31$ patch centred on the corner. A *fixed* set of 256 pixel pairs $(a_i,b_i)$ — read from a precomputed **lookup table**, already rotated to the corner's angle $\theta$ so the result is rotation-invariant — is sampled inside this patch. Each pair yields one bit by comparing intensity: $\tau_i = 1$ if $I(a_i) < I(b_i)$, else $0$. Concatenating all 256 gives a **256-bit (32-byte)** descriptor. Later, descriptors will be compared across frames to find correspondences — the same scene point seen in two images — using the **Hamming distance**.
+3. **BRIEF Descriptor:** Take the $31\times31$ patch centred on the corner. A *fixed* set of 256 pixel pairs $(a_i,b_i)$ — read from a precomputed **lookup table**, already rotated to the corner's angle $\theta$ so the result is rotation-invariant — is sampled inside this patch. Each pair yields one bit by comparing intensity: $\tau_i = 1$ if $I(a_i) < I(b_i)$, else $0$. Concatenating all 256 gives a **256-bit (32-byte)** descriptor. Later, descriptors will be compared across frames to find correspondences — the same scene point seen in two images.
 4. **Scale pyramid:** Steps 1–3 run on each level of a pyramid of $N$ (the `PYRAMID LEVELS` slider) progressively downscaled images (ratio = `SCALE_FACTOR` slider). A feature is detected at whatever level it is sharpest, giving **scale invariance** - the fixed $31\times31$ patch covers more of the scene on coarser levels. The demo draws only the keypoints; the descriptors feed the matching step next.
 

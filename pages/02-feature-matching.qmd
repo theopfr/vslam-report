@@ -6,16 +6,9 @@ Once features are extracted, they have to be **matched** across frames — findi
 
 #### How it works
 
-Each keypoint carries the 256-bit descriptor built in the previous step. Matching simply asks: for a descriptor in the current frame $F_t$, **which descriptor in an earlier frame $F_{t-1}$ is most similar?**
+Each keypoint carries the 256-bit descriptor from the previous step. Matching asks: for a descriptor in frame $F_t$, **which descriptor in the earlier frame $F_{t-1}$ is most similar?** Similarity is the **Hamming distance** — the number of differing bits (a fast XOR + bit-count) — and each descriptor is paired with its nearest neighbour. A few cheap filters (a distance threshold, a cross-check) throw out the unreliable pairs, leaving a set of *probable* correspondences. The next step, **Camera Motion Estimation**, makes the final call on which ones are geometrically consistent.
 
-1. **Nearest-neighbour search using Hamming distance.** Similarity between two binary descriptors is the **Hamming distance** — the number of differing bits (a fast XOR + bit-count); a small distance means the patches look nearly identical. For each descriptor in frame A, find its **nearest neighbour** in frame B — the descriptor with the smallest Hamming distance. That pair is a *probable* match: likely the same scene point seen from the two camera positions (the lines in the demo).
-2. **Reject bad matches.** Nearest-neighbour always returns *something*, even when the true point is occluded or out of view, so the candidates must be filtered. Common tests: a **distance threshold** (drop matches that are still too different), the **ratio test** (drop a match if the best and second-best neighbours are nearly tied — it's ambiguous), and a **cross-check** (keep a match only if A→B and B→A agree on each other). This demo uses cross-check plus a distance threshold.
-
-The result is a set of point correspondences between the two frames. They're only *probable* — a final geometric check during **Camera Motion Estimation** (the next step) removes the matches that are inconsistent with a single camera motion.
-
-To get a feel for what a descriptor actually responds to, the two images below each contain a corner plus a fixed circle peeking in from the top-left. **Drag the corner around** (drag *inside* the dashed circle to move it, *outside* to rotate it). The dashed circle is the **descriptor patch** — the only region the descriptor looks at. The bit rows update live, disagreeing bits turn red, and a line links the corners when they **match**.
-
-Because the descriptor is centred on the corner and rotation-invariant, you can **move and rotate it freely and it keeps matching** — as long as nothing else enters its patch. But drag the corner up toward the top-left circle: once part of that circle falls inside the patch, the local appearance changes, the bits flip, and the **match breaks**. That's the key idea — a descriptor describes a feature's *local neighbourhood*, so anything intruding on it (here a nearby object, in practice occlusion or clutter) can spoil the match.
+To see what a descriptor actually responds to, the two images below each hold a corner plus a fixed circle in the top-left. **Drag the corner** to move it (*inside* the dashed circle), or *outside* to rotate. The dashed circle is the **descriptor patch** — the only region that's compared. Because the descriptor is centred on the corner and rotation-invariant, it keeps matching as you move and rotate it — until you drag it near the circle: once that intrudes on the patch, the bits flip and the **match breaks**.
 
 ```{=html}
 <iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>

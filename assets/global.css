@@ -132,6 +132,16 @@ hr {
   margin: 2rem 0;
 }
 
+/* ===== LIST SPACING ===== */
+#quarto-document-content ol > li,
+#quarto-document-content ul > li {
+  margin-bottom: 0.7rem;
+}
+#quarto-document-content ol > li:last-child,
+#quarto-document-content ul > li:last-child {
+  margin-bottom: 0;
+}
+
 /* ===== “HUD STYLE” GLOW EFFECT ===== */
 h1, h2 {
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.15);

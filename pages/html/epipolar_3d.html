@@ -25,7 +25,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 <body>
 <div class="wrap">
   <canvas id="stage" width="720" height="540"></canvas>
-  <div class="hint">drag to orbit the 3D scene · the epipole e′ is where the baseline (A↔B) pierces each image plane</div>
+  <div class="hint">drag to orbit · we want the motion from A to B: the translation <b>t</b> (white arrow) and the rotation <b>R</b> (white arc)</div>
 
   <div class="params">
     <div class="param">
@@ -35,6 +35,10 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
     <div class="param">
       <label for="tz">Camera B — forward <span class="val" id="tz-val">1.50</span></label>
       <input type="range" id="tz" min="0.05" max="3" step="0.05" value="1.5">
+    </div>
+    <div class="param">
+      <label for="rot">Camera B — rotation <span class="val" id="rot-val">0°</span></label>
+      <input type="range" id="rot" min="-40" max="40" step="1" value="0">
     </div>
   </div>
 </div>
@@ -85,6 +89,16 @@ function cross3(p, s, color) {
   ctx.stroke();
 }
 function label3(p, txt, color, dx, dy) { const a = project(p); ctx.fillStyle = color; ctx.font = '11px IBM Plex Mono, monospace'; ctx.fillText(txt, a.x + (dx||6), a.y + (dy||-6)); }
+// solid 3D arrow (segment + screen-space arrowhead at the 'to' end)
+function arrow3(from, to, color, width) {
+  line3(from, to, color, width);
+  const a = project(from), b = project(to), ang = Math.atan2(b.y-a.y, b.x-a.x), s = 9;
+  ctx.strokeStyle = color; ctx.lineWidth = width || 2; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - s*Math.cos(ang-0.4), b.y - s*Math.sin(ang-0.4));
+  ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - s*Math.cos(ang+0.4), b.y - s*Math.sin(ang+0.4));
+  ctx.stroke();
+}
 
 // draw a camera as a small frustum (apex + image-plane rectangle)
 const F = 0.7, HS = 0.55;   // frustum depth and half-size of the image plane
@@ -112,7 +126,8 @@ function camera(apex, Rw, color, fillCol, name) {
 function render() {
   const tx = +document.getElementById('tx').value;
   const tz = +document.getElementById('tz').value;
-  const R = [1,0,0,0,1,0,0,0,1];       // camera B: no rotation, translation only
+  const rot = (+document.getElementById('rot').value) * Math.PI/180;
+  const R = rotY(rot);                 // camera B's rotation relative to A
   const Oa = [0,0,0];
   const Cb = [tx, 0, tz];              // camera-B optical centre in world (sideways, forward)
 
@@ -126,8 +141,8 @@ function render() {
 
   // scene points (rays drawn only for the one highlighted point, to stay clean)
   SCENE.forEach((p,i)=> dot3(p, 3.4, i===HILITE ? '#8fd3ff' : 'rgba(143,211,255,0.5)'));
-  line3(Oa, P, 'rgba(125,255,178,0.7)', 1.5);
-  line3(Cb, P, 'rgba(245,177,74,0.7)', 1.5);
+  line3(Oa, P, 'rgba(125,255,178,0.6)', 1.2, [4,4]);
+  line3(Cb, P, 'rgba(245,177,74,0.6)', 1.2, [4,4]);
 
   // the two cameras
   const camA = camera(Oa, [1,0,0,0,1,0,0,0,1], '#7dffb2', 'rgba(125,255,178,0.16)', 'A  (Fₜ₋₁)');
@@ -142,34 +157,27 @@ function render() {
   projectFeature(Oa, camA.d, '#eafff3');
   projectFeature(Cb, camB.d, '#ffe9c9');
 
-  // the baseline and both epipoles all lie on the one line through the optical
-  // centres (every relevant point is a scalar multiple of Cb) → draw a single line
-  const dA = camA.d, cA = camA.center, dB = camB.d, cB = camB.center;
-  const lams = [0, 1];
-  let eA = null, eB = null;
-  const denA = Cb[0]*dA[0]+Cb[1]*dA[1]+Cb[2]*dA[2];
-  const denB = Cb[0]*dB[0]+Cb[1]*dB[1]+Cb[2]*dB[2];
-  if (Math.abs(denA) > 1e-3) { const l = (cA[0]*dA[0]+cA[1]*dA[1]+cA[2]*dA[2])/denA; if (l>0 && l<8) { eA = scl(Cb, l); lams.push(l); } }
-  if (Math.abs(denB) > 1e-3) { const l = (cB[0]*dB[0]+cB[1]*dB[1]+cB[2]*dB[2])/denB; if (l>-8 && l<8) { eB = scl(Cb, l); lams.push(l); } }
-  line3(scl(Cb, Math.min(...lams)), scl(Cb, Math.max(...lams)), 'rgba(255,255,255,0.45)', 1.5, [5,4]);
-  // epipolar line for the highlighted point: the segment IN camera B's image
-  // plane from its projected × to the epipole e′ (where the epipolar plane cuts B)
-  if (eB) {
-    const sP = vdot(sub(P, Cb), dB);
-    if (sP > 1e-3) {
-      const xBp = add(Cb, scl(sub(P, Cb), F / sP));
-      const farEnd = add(xBp, scl(sub(xBp, eB), 0.4));   // extend a touch past the ×
-      line3(eB, farEnd, '#ffd27d', 2, [6,4]);
-      label3(xBp, 'epipolar line', 'rgba(255,210,125,0.9)', 8, 15);
-    }
+  // --- what we're solving for: the motion from A to B ---
+  // translation t: the vector from A's centre to B's centre (stop short of B so
+  // the arrowhead clears the camera label)
+  arrow3(Oa, scl(Cb, 0.92), '#eafff3', 2.5);
+  label3(scl(Cb, 0.45), 't', '#eafff3', 8, -6);
+
+  // rotation R: B's viewing direction vs a faint copy of A's orientation placed
+  // at B; the amber arc between them is the rotation we recover
+  const dRef = camA.d, dCur = camB.d, AL = F * 1.05;
+  arrow3(Cb, add(Cb, scl(dRef, AL)), 'rgba(234,255,243,0.6)', 1.6);
+  const o = project(Cb);
+  const p1 = project(add(Cb, scl(dRef, AL))), p2 = project(add(Cb, scl(dCur, AL)));
+  const a1 = Math.atan2(p1.y-o.y, p1.x-o.x), a2 = Math.atan2(p2.y-o.y, p2.x-o.x);
+  const rad = 0.5*(Math.hypot(p1.x-o.x,p1.y-o.y)+Math.hypot(p2.x-o.x,p2.y-o.y));
+  if (Math.abs(rot) > 0.01) {
+    ctx.strokeStyle = '#eafff3'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(o.x, o.y, rad, Math.min(a1,a2), Math.max(a1,a2)); ctx.stroke();
   }
-
-  if (eA) { dot3(eA, 4.5, '#ff5cf0'); label3(eA, 'e',  '#ff5cf0'); }
-  if (eB) { dot3(eB, 4.5, '#ff5cf0'); label3(eB, "e′", '#ff5cf0'); }
-
-  // legend
-  ctx.fillStyle = 'rgba(207,231,216,0.5)'; ctx.font = '10px IBM Plex Mono, monospace';
-  ctx.fillText('white dashed = baseline · magenta = epipole · squares = image planes', 14, canvas.height - 12);
+  const aMid = (a1+a2)/2;
+  ctx.fillStyle = '#eafff3'; ctx.font = '12px IBM Plex Mono, monospace';
+  ctx.fillText('R', o.x + (rad+12)*Math.cos(aMid) - 4, o.y + (rad+12)*Math.sin(aMid) + 4);
 }
 
 // orbit interaction
@@ -188,9 +196,12 @@ canvas.addEventListener('touchstart', e => { drag = true; const p = pt(e); lastX
 canvas.addEventListener('touchmove', e => { if (!drag) return; const p = pt(e); az += (p.x-lastX)*0.01; el = Math.max(-1.2,Math.min(1.2, el+(p.y-lastY)*0.01)); lastX=p.x; lastY=p.y; e.preventDefault(); render(); }, { passive: false });
 window.addEventListener('touchend', () => drag = false);
 
-['tx','tz'].forEach(id => {
+['tx','tz','rot'].forEach(id => {
   const el2 = document.getElementById(id), v = document.getElementById(id+'-val');
-  el2.addEventListener('input', () => { v.textContent = (+el2.value).toFixed(2); render(); });
+  el2.addEventListener('input', () => {
+    v.textContent = id==='rot' ? `${el2.value}°` : (+el2.value).toFixed(2);
+    render();
+  });
 });
 
 render();
