@@ -33,18 +33,6 @@ canvas#scene {
   letter-spacing: 0.06em;
 }
 
-.modes { display: flex; gap: 0.5rem; margin-top: 0.9rem; justify-content: center; }
-.mode-btn {
-  font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: rgba(207, 231, 216, 0.7); background: rgba(12, 18, 16, 0.6);
-  border: 1px solid rgba(0, 255, 136, 0.25); border-radius: 6px;
-  padding: 0.5rem 0.9rem; cursor: pointer; transition: all 0.15s ease;
-}
-.mode-btn.active {
-  color: #0b0f0e; background: #7dffb2; border-color: #7dffb2;
-  font-weight: 600; box-shadow: 0 0 12px rgba(0, 255, 136, 0.35);
-}
-
 .panel {
   margin-top: 0.9rem;
   display: grid; grid-template-columns: auto 1fr; gap: 0.9rem 1.2rem; align-items: center;
@@ -88,11 +76,6 @@ input[type="range"]::-moz-range-thumb {
   <canvas id="scene" width="624" height="248"></canvas>
   <div class="hint">drag in the left view — the epipolar line in the right view comes from the <b>estimated</b> matrix</div>
 
-  <div class="modes">
-    <button class="mode-btn active" id="mode-f">Uncalibrated · F</button>
-    <button class="mode-btn" id="mode-e">Calibrated · E</button>
-  </div>
-
   <div class="panel">
     <div class="matrix" id="matrix"></div>
     <div class="note" id="note"></div>
@@ -134,7 +117,6 @@ const SCENE = [
   [-0.3, -0.9, 6.0], [1.7, 0.1, 6.8],
 ];
 
-let mode = 'F';
 let query = { x: 90, y: 90 };
 let model = null;   // { matches, F, E, recovered } recomputed when sliders change
 
@@ -413,24 +395,15 @@ function fmtMat(M) {
 function updatePanel() {
   const matrix = document.getElementById('matrix');
   const note = document.getElementById('note');
-  const n = model.matches.length;
-  if (mode === 'F') {
-    matrix.innerHTML = fmtMat(model.F);
-    note.innerHTML =
-      `<b>Fundamental matrix F</b>, <b>estimated</b> from the ${n} pixel ` +
-      `correspondences via the normalized 8-point algorithm — no calibration used. ` +
-      `It defines the epipolar lines, but only a projective reconstruction.`;
-  } else {
-    matrix.innerHTML = fmtMat(model.E);
-    const r = model.recovered;
-    const rec = r
-      ? `<span class="recovered">yaw ${r.yaw.toFixed(1)}°, t dir [${r.t.map(x=>x.toFixed(2)).join(', ')}]</span>`
-      : `<span class="recovered">(degenerate — adjust the scene)</span>`;
-    note.innerHTML =
-      `<b>Essential matrix E = Kᵀ F K</b>, then decomposed (SVD + cheirality) into motion: ` +
-      `${rec}. True yaw was ${model.trueYaw.toFixed(1)}° — calibration is what makes this ` +
-      `metric recovery possible (translation scale stays unknown).`;
-  }
+  matrix.innerHTML = fmtMat(model.E);
+  const r = model.recovered;
+  const rec = r
+    ? `<span class="recovered">yaw ${r.yaw.toFixed(1)}°, t dir [${r.t.map(x=>x.toFixed(2)).join(', ')}]</span>`
+    : `<span class="recovered">(degenerate — adjust the scene)</span>`;
+  note.innerHTML =
+    `<b>Essential matrix E</b>, <b>estimated</b> from the ${model.matches.length} point ` +
+    `matches (normalized 8-point algorithm) and decomposed (SVD + cheirality) into the camera motion: ` +
+    `${rec}. True yaw was ${model.trueYaw.toFixed(1)}°.`;
 }
 
 /* ===== interaction ===== */
@@ -457,19 +430,6 @@ window.addEventListener('mouseup', () => dragging = false);
 canvas.addEventListener('touchstart', e => { dragging = true; setQuery(e); e.preventDefault(); }, { passive: false });
 canvas.addEventListener('touchmove', e => { if (dragging) { setQuery(e); e.preventDefault(); } }, { passive: false });
 window.addEventListener('touchend', () => dragging = false);
-
-document.getElementById('mode-f').addEventListener('click', () => {
-  mode = 'F';
-  document.getElementById('mode-f').classList.add('active');
-  document.getElementById('mode-e').classList.remove('active');
-  render();
-});
-document.getElementById('mode-e').addEventListener('click', () => {
-  mode = 'E';
-  document.getElementById('mode-e').classList.add('active');
-  document.getElementById('mode-f').classList.remove('active');
-  render();
-});
 
 ['tx','tz','yaw','noise'].forEach(id => {
   const el = document.getElementById(id), valEl = document.getElementById(id+'-val');

@@ -14,7 +14,8 @@ body {
 }
 
 .wrap {
-  max-width: 720px;
+  max-width: 650px;
+  height: 775px;
   margin: 0 auto;
   padding: 1rem;
 }
@@ -66,10 +67,10 @@ canvas#out {
 .overlay.hidden { display: none; }
 
 .overlay p {
-  font-size: 13px;
-  color: rgba(207, 231, 216, 0.7);
-  line-height: 1.6;
-  max-width: 360px;
+  font-size: 11px;
+  color: rgba(207, 231, 216, 0.6);
+  line-height: 1.5;
+  max-width: 280px;
 }
 
 /* ===== HUD (count badge) ===== */
@@ -201,9 +202,7 @@ input[type="range"]::-moz-range-thumb {
     <div class="hud" id="hud">ORB keypoints: 0</div>
 
     <div class="overlay" id="overlay">
-      <p>Live ORB feature detection running in your browser. Click below to open
-         your front camera — detected keypoints are drawn on top of the feed.
-         Nothing leaves your device.</p>
+      <p>Detect ORB keypoints live on your camera feed. Nothing leaves your browser.</p>
     </div>
   </div>
 
@@ -330,10 +329,10 @@ async function start() {
   video.srcObject = stream;
   await video.play();
 
-  // size the processing/display canvas to the camera aspect ratio
-  const ar = video.videoHeight / video.videoWidth || 0.75;
+  // fixed 4:3 processing/display canvas — matches the stage box, so the feed
+  // is cover-cropped (not stretched) regardless of the camera's aspect ratio.
   canvas.width  = PROC_W;
-  canvas.height = Math.round(PROC_W * ar);
+  canvas.height = Math.round(PROC_W * 3 / 4);
 
   // allocate OpenCV objects
   orb       = buildOrb();                      // configured from the sliders
@@ -355,10 +354,15 @@ function loop() {
 
   // mirror the feed so it reads like a selfie; keypoints stay aligned
   // because we detect on the already-mirrored canvas pixels.
+  // cover-crop the video into the 4:3 canvas so it fills without stretching.
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const scale = Math.max(canvas.width / vw, canvas.height / vh);
+  const dw = vw * scale, dh = vh * scale;
+  const dx = (canvas.width - dw) / 2, dy = (canvas.height - dh) / 2;
   ctx.save();
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, dx, dy, dw, dh);
   ctx.restore();
 
   try {

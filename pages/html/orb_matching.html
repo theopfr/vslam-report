@@ -20,9 +20,12 @@ body {
 }
 
 /* ===== STAGE ===== */
+/* aspect-ratio matches the two-panel canvas buffer (2*320+12) x 240 so the
+   absolutely-positioned canvas fills it without any stretching. */
 .stage {
   position: relative;
   width: 100%;
+  aspect-ratio: 652 / 240;
   border: 1px solid rgb(0, 255, 136);
   border-radius: 8px;
   overflow: hidden;
@@ -36,15 +39,16 @@ body {
     ),
     #0b0f0e;
   box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
-  min-height: 180px;
 }
 
 video { display: none; }
 
 canvas#out {
   display: none;          /* shown once the camera starts (avoids the default 300x150 box) */
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 canvas#out.show { display: block; }
 
@@ -72,24 +76,6 @@ canvas#out.show { display: block; }
 .tag.left  { left: 8px; }
 .tag.right { right: 8px; }
 
-/* ===== HUD ===== */
-.hud {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 3;
-  font-size: 12px;
-  color: #7dffb2;
-  background: rgba(11, 15, 14, 0.65);
-  border: 1px solid rgba(0, 255, 136, 0.3);
-  border-radius: 5px;
-  padding: 4px 9px;
-  letter-spacing: 0.08em;
-  text-shadow: 0 0 8px rgba(0, 255, 136, 0.25);
-  display: none;
-}
-.hud.show { display: block; }
-
 .overlay {
   position: absolute;
   inset: 0;
@@ -97,15 +83,15 @@ canvas#out.show { display: block; }
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 1.5rem;
+  padding: 1rem;
   z-index: 2;
 }
 .overlay.hidden { display: none; }
 .overlay p {
-  font-size: 13px;
-  color: rgba(207, 231, 216, 0.7);
-  line-height: 1.6;
-  max-width: 420px;
+  font-size: 11px;
+  color: rgba(207, 231, 216, 0.6);
+  line-height: 1.5;
+  max-width: 280px;
 }
 
 /* ===== BUTTON ===== */
@@ -156,13 +142,8 @@ canvas#out.show { display: block; }
       <span class="tag left">now</span>
       <span class="tag right">~0.8s ago</span>
     </div>
-    <div class="hud" id="hud">matches: 0</div>
-
     <div class="overlay" id="overlay">
-      <p>Live ORB feature matching. The left panel is the current camera frame,
-         the right is a frame from a moment ago. Matching keypoints are linked by
-         lines — move the camera slowly to watch the correspondences shift.
-         Everything runs locally; nothing leaves your device.</p>
+      <p>Match ORB features between the live frame and one from a moment ago. Nothing leaves your browser.</p>
     </div>
   </div>
 
@@ -179,7 +160,6 @@ const canvas   = document.getElementById('out');
 const ctx      = canvas.getContext('2d');
 const startBtn = document.getElementById('startBtn');
 const overlay  = document.getElementById('overlay');
-const hud      = document.getElementById('hud');
 const tags     = document.getElementById('tags');
 const statusEl = document.getElementById('status');
 
@@ -232,8 +212,9 @@ async function start() {
   video.srcObject = stream;
   await video.play();
 
-  const ar = video.videoHeight / video.videoWidth || 0.75;
-  PROC_H  = Math.round(PROC_W * ar);
+  // fixed 4:3 panels (matches the stage aspect-ratio) — the feed is
+  // cover-cropped into them, never stretched.
+  PROC_H  = Math.round(PROC_W * 3 / 4);
   RIGHT_X = PROC_W + GAP;
 
   canvas.width  = PROC_W * 2 + GAP;
@@ -262,7 +243,6 @@ async function start() {
   running = true;
   canvas.classList.add('show');
   overlay.classList.add('hidden');
-  hud.classList.add('show');
   tags.classList.add('show');
   startBtn.textContent = 'Stop camera';
   setStatus('');
@@ -272,11 +252,15 @@ async function start() {
 function loop() {
   if (!running) return;
 
-  // grab the current frame, mirrored selfie-style
+  // grab the current frame, mirrored selfie-style, cover-cropped into 4:3
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const s = Math.max(PROC_W / vw, PROC_H / vh);
+  const dw = vw * s, dh = vh * s;
+  const dx = (PROC_W - dw) / 2, dy = (PROC_H - dh) / 2;
   capCtx.save();
   capCtx.translate(PROC_W, 0);
   capCtx.scale(-1, 1);
-  capCtx.drawImage(video, 0, 0, PROC_W, PROC_H);
+  capCtx.drawImage(video, dx, dy, dw, dh);
   capCtx.restore();
 
   const kp = new cv.KeyPointVector();
@@ -332,7 +316,6 @@ function loop() {
         count++;
       }
     }
-    hud.textContent = 'matches: ' + count;
 
     // every SNAP_MS, the current frame becomes the "previous" reference
     const now = performance.now();
@@ -375,7 +358,6 @@ function stop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   canvas.classList.remove('show');
   overlay.classList.remove('hidden');
-  hud.classList.remove('show');
   tags.classList.remove('show');
   startBtn.textContent = 'Start camera';
 }

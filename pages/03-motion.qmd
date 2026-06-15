@@ -1,12 +1,40 @@
-With features matched between two frames, the next step recovers how the **camera itself moved**. The key idea is **epipolar geometry**: a point seen in one image must lie along a known line — its *epipolar line* — in the other image. This constraint is captured by a 3×3 matrix relating the two views.
+Now that we have matched features, we can work out how the **camera moved** between the two frames — how it **rotated** and which way it **translated**. (We assume the camera is *calibrated*: its intrinsics **K** are known, which is what lets us recover real motion rather than just a distorted version of it.)
 
-Which matrix depends on whether the camera is **calibrated**:
-
-- **Uncalibrated** → the **fundamental matrix F**, computable from pixel matches alone. It gives the epipolar lines, but only a projective reconstruction — no real motion.
-- **Calibrated** (intrinsics **K** known) → the **essential matrix E = Kᵀ F K**, which decomposes into the relative rotation **R** and translation direction **t** (scale is unobservable from a single camera).
-
-The explorer below works the way real SLAM does: it **estimates** the matrix from the visible point matches — the normalized **8-point algorithm** for F, then `E = KᵀFK` and an **SVD decomposition** (resolved by the cheirality check) to recover R and t. Drag a point in the left view to see its epipolar line in the right view; the faint lines converge at the **epipole** *e′*. Adjust the camera motion with the sliders, toggle **F** (uncalibrated) vs **E** (calibrated) — in E mode the recovered yaw and translation direction are shown next to the true values — and add **measurement noise** to watch the estimate degrade, exactly as it does with real, imperfect feature detections.
+The trick is **epipolar geometry**. A feature seen in one image doesn't reveal its depth — it could lie anywhere along the ray from the camera through that pixel. But seen from the *other* camera, that whole ray collapses to a single **line**, so the matching feature must lie somewhere on it. The 3D scene below shows the setup: the same camera at two positions, **A** ($F_{t-1}$) and **B** ($F_t$), each imaging a few points. Drag to orbit, and move camera B with the sliders.
 
 ```{=html}
+<iframe src="pages/html/epipolar_3d.html" width="100%" height="676" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```
+
+The two things we want — the rotation and the translation between A and B — are bundled into one 3×3 matrix, the **essential matrix E**:
+
+$$
+E = [\,t\,]_\times \, R
+$$
+
+Here **R** is the **rotation** between the two cameras, and $[\,t\,]_\times$ is the **translation** $t$ written as a matrix:
+
+$$
+[\,t\,]_\times =
+\begin{bmatrix} 0 & -t_z & t_y \\ t_z & 0 & -t_x \\ -t_y & t_x & 0 \end{bmatrix}
+$$
+
+In the 3D scene that's exactly it: **R** is the difference in the two cameras' orientation, and **t** is the **baseline** — the dashed line from A to B. So E is just a compact way of writing *where B sits relative to A*.
+
+#### Finding E from the matches
+
+We never measure R and t directly — all we have are the **×'s**: the pixel where each camera sees the same feature. A match gives a point $x$ in frame A and its partner $x'$ in frame B, and every correct match obeys one simple relation:
+
+$$
+x'^{\top}\, E \, x = 0
+$$
+
+In words: $x'$ must lie on the **epipolar line** of $x$ — the line from the visualization. Each match gives one such equation, so with about **eight matches** there are enough equations to solve for E. Once E is known, it **splits back into R and t** — the camera's motion, which we then chain together to track the camera and hand to triangulation for the 3D map.
+
+One catch: from a single camera the *length* of $t$ can't be recovered, only its direction — so the trajectory and map come out correct in shape but at an arbitrary overall **scale**.
+
+```{=html}
+<!-- Interactive epipolar-estimation explorer (hidden for now; source kept at pages/html/epipolar.html)
 <iframe src="pages/html/epipolar.html" width="100%" height="720px" frameborder="0" scrolling="no"></iframe>
+-->
 ```

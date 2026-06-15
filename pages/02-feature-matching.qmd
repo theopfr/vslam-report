@@ -1,7 +1,7 @@
 Once features are extracted, they have to be **matched** across frames — finding the same real-world point seen from two different camera positions. Below, the left panel is your live camera and the right panel is a frame from a moment ago; lines link the keypoints ORB matched between them. Move the camera slowly to see the correspondences shift.
 
 ```{=html}
-<iframe src="pages/html/orb_matching.html" width="100%" height="420px" frameborder="0" scrolling="no" allow="camera"></iframe>
+<iframe src="pages/html/orb_matching.html" width="100%" height="370" frameborder="0" scrolling="no" allow="camera" style="display:block;border:0;"></iframe>
 ```
 
 #### How it works
@@ -12,3 +12,9 @@ Each keypoint carries the 256-bit descriptor built in the previous step. Matchin
 2. **Reject bad matches.** Nearest-neighbour always returns *something*, even when the true point is occluded or out of view, so the candidates must be filtered. Common tests: a **distance threshold** (drop matches that are still too different), the **ratio test** (drop a match if the best and second-best neighbours are nearly tied — it's ambiguous), and a **cross-check** (keep a match only if A→B and B→A agree on each other). This demo uses cross-check plus a distance threshold.
 
 The result is a set of point correspondences between the two frames. They're only *probable* — a final geometric check during **Camera Motion Estimation** (the next step) removes the matches that are inconsistent with a single camera motion.
+
+To get a feel for how a descriptor responds, grab the corner in the left patch below — drag near the centre to **move** it, or near the edge to **rotate** it. The two bit arrays update live and the bits that disagree light up red. When the corner is aligned with the reference the descriptors are identical, so when few enough bits differ (below a threshold) the two corners are accepted as the same point and linked with a line. Rotate it and watch the bits flip and the match break — a preview of why ORB *steers* its pattern by the keypoint orientation.
+
+```{=html}
+<iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```

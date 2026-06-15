@@ -1,7 +1,7 @@
 Feature detection finds distinctive, repeatable points in an image, corners and blobs that can be re-identified across frames. Below you can run an ORB feature detector live on your own camera feed, directly in the browser:
 
 ```{=html}
-<iframe src="pages/html/orb_camera.html" width="100%" height="900px" frameborder="0" scrolling="no" allow="camera"></iframe>
+<iframe src="pages/html/orb_camera.html" width="100%" height="775" frameborder="0" scrolling="no" allow="camera" style="display:block;border:0;"></iframe>
 ```
 
 #### How it works
