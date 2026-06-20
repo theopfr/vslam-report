@@ -2,7 +2,7 @@ Everything so far is **visual odometry**: the camera tracked frame by frame. And
 
 **Loop closure** fixes this in two steps:
 
-1. **Recognise the place** - match the current frame's appearance against past keyframes. A hit means "I've been here before."
+1. **Recognise the place** - match the current frame's appearance against past keyframes [@galvezlopez2012]. A hit means "I've been here before."
 2. **Correct the loop** - that match says the current pose is really the old one, so the accumulated error gets pushed back across every pose in between.
 
 #### Back-calculating the poses
@@ -30,4 +30,4 @@ Drag the **drift** slider to send the estimate off course, then hit **Close the 
 </div>
 ```
 
-This is what makes it true **SLAM**: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM, and its successor ORB-SLAM3, are built on exactly this pipeline.
+This is what makes it true **SLAM**: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM [@murartal2015], and its successor ORB-SLAM3 [@campos2021], are built on exactly this pipeline.

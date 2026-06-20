@@ -4,6 +4,7 @@ subtitle: "An interactive guide to <i>Visual Simultaneous Location And Mapping</
 author: "Theodor Peifer, Amelie Hora, Japheth Legesse<br/>Munich University of Applies Sciences"
 jupyter: python3
 bibliography: references.bib
+csl: ieee.csl
 ---
 
 ## Abstract
@@ -53,8 +54,11 @@ Run frame after frame, these steps are called **visual odometry** [@nister2004vo
 
 ---
 
----
-
 ### BONUS - Loop Closure
 
 {{< include pages/06-loop-closure.qmd >}}
+
+## References
+
+::: {#refs}
+:::
