@@ -11,6 +11,9 @@ canvas#stage {
   display: block; width: 100%; height: auto;
   border: 1px solid rgba(0,255,136,0.35); border-radius: 8px;
   background: #0b0f0e; cursor: grab; box-shadow: 0 0 18px rgba(0,255,136,0.08);
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 canvas#stage:active { cursor: grabbing; }
 .hint { text-align: left; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
@@ -180,8 +183,11 @@ function move(e){
   else { const cx=LX+cornerX*SC, cy=PY+cornerY*SC, a=Math.atan2(my-cy,mx-cx); angLeft+=a-lastAng; lastAng=a; }
   render();
 }
-canvas.addEventListener('mousedown', e=>{ if(start(e)) render(); });
 canvas.addEventListener('mousemove', move);
+canvas.addEventListener('mousedown', e=>{ 
+  e.preventDefault();
+  if(start(e)) render(); 
+});
 window.addEventListener('mouseup', ()=>drag=null);
 canvas.addEventListener('touchstart', e=>{ if(start(e)){ e.preventDefault(); render(); } }, {passive:false});
 canvas.addEventListener('touchmove', e=>{ if(drag){ move(e); e.preventDefault(); } }, {passive:false});

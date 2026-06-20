@@ -129,7 +129,7 @@ window.Quarto = {
 <h4 class="anchored" data-anchor-id="computing-the-feature-points-3d-coordinates">Computing the feature point’s 3D coordinates</h4>
 <p>Through all previous steps we now have everything needed to compute a point’s location:</p>
 <ul>
-<li><span class="math inline">\(K\)</span>: the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration)</li>
+<li><span class="math inline">\(K\)</span>: the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration</li>
 <li><span class="math inline">\(R_1, t_1\)</span> and <span class="math inline">\(R_2, t_2\)</span>: the <strong>pose</strong> of each camera (from motion estimation)</li>
 <li><span class="math inline">\(x_1 = (u_1, v_1)\)</span> and <span class="math inline">\(x_2 = (u_2, v_2)\)</span>: the <strong>matched pixel</strong> in each image (from feature matching)</li>
 </ul>
@@ -137,7 +137,7 @@ window.Quarto = {
 <p><span class="math display">\[
 x \simeq P\,X
 \]</span></p>
-<p>We know <span class="math inline">\(x\)</span> and <span class="math inline">\(P\)</span> for <em>both</em> cameras and want the shared unknown <span class="math inline">\(X\)</span>. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit <span class="math inline">\(X\)</span> is the <strong>Direct Linear Transform (DLT)</strong>, done with a <strong>Singular Value Decomposition (SVD)</strong>. Even though the two rays mostly never meet because of noise, <strong>SVD</strong> ensures that <span class="math inline">\(X\)</span> lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.</p>
+<p>We know <span class="math inline">\(x\)</span> and <span class="math inline">\(P\)</span> for <em>both</em> cameras and want the shared unknown <span class="math inline">\(X\)</span>. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit <span class="math inline">\(X\)</span> is the <strong>Direct Linear Transform (DLT)</strong>, done with a <strong>Singular Value Decomposition (SVD)</strong> <span class="citation" data-cites="hartley2004">[@hartley2004]</span>. Even though the two rays mostly never meet because of noise, <strong>SVD</strong> ensures that <span class="math inline">\(X\)</span> lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.</p>
 
 
 </section>

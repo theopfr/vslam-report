@@ -24,7 +24,27 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-</style>
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
 
 
 <script src="site_libs/quarto-nav/quarto-nav.js"></script>
@@ -152,7 +172,7 @@ window.Quarto = {
 <iframe src="pages/html/vslam_pipeline.html" width="100%" height="1010" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
 </div>
-<p>Run frame after frame, these steps are called <strong>visual odometry</strong> <span class="citation" data-cites="nister2004vo">(<a href="#ref-nister2004vo" role="doc-biblioref"><strong>nister2004vo?</strong></a>)</span>: the camera is tracked while the map is built up as it goes. We focus on each step in turn, with interactive demos using OpenCV running directly in your browser.</p>
+<p>Run frame after frame, these steps are called <strong>visual odometry</strong> <span class="citation" data-cites="nister2004vo"><a href="#ref-nister2004vo" role="doc-biblioref">[1]</a></span>: the camera is tracked while the map is built up as it goes. We focus on each step in turn, with interactive demos using OpenCV running directly in your browser.</p>
 </section>
 <section id="pipeline" class="level2">
 <h2 class="anchored" data-anchor-id="pipeline">Pipeline</h2>
@@ -165,7 +185,7 @@ window.Quarto = {
 </div>
 <section id="how-orb-finds-and-describes-features" class="level4">
 <h4 class="anchored" data-anchor-id="how-orb-finds-and-describes-features">How ORB finds and describes features</h4>
-<p>The demo above runs <strong>ORB</strong> (Oriented FAST and Rotated BRIEF), a fast combination of a corner detector (<strong>FAST</strong>) and a binary descriptor (<strong>BRIEF</strong>). This feature detection method consists of four distinct steps, as shown below:</p>
+<p>The demo above runs <strong>ORB</strong> (Oriented FAST and Rotated BRIEF) <span class="citation" data-cites="rublee2011"><a href="#ref-rublee2011" role="doc-biblioref">[2]</a></span>, a fast combination of a corner detector (<strong>FAST</strong>) <span class="citation" data-cites="rosten2005"><a href="#ref-rosten2005" role="doc-biblioref">[3]</a></span> and a binary descriptor (<strong>BRIEF</strong>) <span class="citation" data-cites="calonder2010"><a href="#ref-calonder2010" role="doc-biblioref">[4]</a></span>. This feature detection method consists of four distinct steps, as shown below:</p>
 <img src="assets/images/orb-pipeline.svg" alt="ORB feature detection pipeline: FAST corner test, intensity-centroid orientation, rotated BRIEF descriptor, and scale pyramid" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;">
 <p><br></p>
 <ol type="1">
@@ -175,11 +195,11 @@ S_x = \begin{cases}
 \text{similar}  &amp; \text{if } I_p - t &lt; I_x &lt; I_p + t \\
 \text{darker}   &amp; \text{if } I_x \leq I_p - t
 \end{cases}
-\]</span> where <span class="math inline">\(I_p\)</span> is the candidate’s intensity and <span class="math inline">\(t\)</span> a fixed threshold (the <code>FAST THRESHOLD</code> slider). <span class="math inline">\(p\)</span> is a corner if <span class="math inline">\(\geq 9\)</span> contiguous ring pixels are <em>all brighter</em> or <em>all darker</em>. Survivors are ranked by their <strong>Harris corner score</strong> - how much the intensity changes around each point - and the best <span class="math inline">\(N\)</span> (the <code>MAX FEATURES</code> slider) are kept.</li>
+\]</span> where <span class="math inline">\(I_p\)</span> is the candidate’s intensity and <span class="math inline">\(t\)</span> a fixed threshold (the <code>FAST THRESHOLD</code> slider). <span class="math inline">\(p\)</span> is a corner if <span class="math inline">\(\geq 9\)</span> contiguous ring pixels are <em>all brighter</em> or <em>all darker</em>. Survivors are ranked by their <strong>Harris corner score</strong> <span class="citation" data-cites="harris1988"><a href="#ref-harris1988" role="doc-biblioref">[5]</a></span> - how much the intensity changes around each point - and the best <span class="math inline">\(N\)</span> (the <code>MAX FEATURES</code> slider) are kept.</li>
 </ol>
 <img src="assets/images/corner-test.svg" alt="Harris corner detection" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;transform:scale(0.75);">
 <ol start="2" type="1">
-<li><strong>Corner Orientation:</strong> Each corner is assigned an angle using the <strong>intensity centroid</strong> method, which points from the patch centre toward its brightest side (the orientation line in the demo’s <strong>Rich keypoints</strong> view). Steering the descriptor by this angle <span class="math inline">\(\theta\)</span> is what makes ORB rotation-invariant.</li>
+<li><strong>Corner Orientation:</strong> Each corner is assigned an angle using the <strong>intensity centroid</strong> method <span class="citation" data-cites="rosin1999"><a href="#ref-rosin1999" role="doc-biblioref">[6]</a></span>, which points from the patch centre toward its brightest side (the orientation line in the demo’s <strong>Rich keypoints</strong> view). Steering the descriptor by this angle <span class="math inline">\(\theta\)</span> is what makes ORB rotation-invariant.</li>
 <li><strong>BRIEF Descriptor:</strong> Take the <span class="math inline">\(31\times31\)</span> patch centred on the corner. A <em>fixed</em> set of 256 pixel pairs <span class="math inline">\((a_i,b_i)\)</span> - read from a precomputed <strong>lookup table</strong><a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>, already rotated to the corner’s angle <span class="math inline">\(\theta\)</span> so the result is rotation-invariant - is sampled inside this patch. Each pair yields one bit by comparing intensity: <span class="math inline">\(\tau_i = 1\)</span> if <span class="math inline">\(I(a_i) &lt; I(b_i)\)</span>, else <span class="math inline">\(0\)</span>. Concatenating all 256 gives a <strong>256-bit (32-byte)</strong> descriptor. Later, descriptors will be compared across frames to find correspondences - the same scene point seen in two images.</li>
 <li><strong>Scale pyramid:</strong> Steps 1–3 run on each level of a pyramid of <span class="math inline">\(N\)</span> (the <code>PYRAMID LEVELS</code> slider) progressively downscaled images (ratio = <code>PYRAMID SCALE FACTOR</code> slider). A feature is detected at whatever level it is sharpest, giving <strong>scale invariance</strong> - the fixed <span class="math inline">\(31\times31\)</span> patch covers more of the scene on coarser levels.</li>
 </ol>
@@ -198,7 +218,7 @@ S_x = \begin{cases}
 <section id="how-it-works" class="level4">
 <h4 class="anchored" data-anchor-id="how-it-works">How it works</h4>
 <p>Every keypoint carries its 256-bit descriptor (as described in the previous section). To match one from frame <span class="math inline">\(F_t\)</span>, we look for the <strong>most similar</strong> descriptor in the previous frame <span class="math inline">\(F_{t-1}\)</span>.</p>
-<p>For binary strings, “similar” means a small <strong>Hamming distance</strong> - the number of bits that differ:</p>
+<p>For binary strings, “similar” means a small <strong>Hamming distance</strong> <span class="citation" data-cites="hamming1950"><a href="#ref-hamming1950" role="doc-biblioref">[7]</a></span> - the number of bits that differ:</p>
 <p><span class="math display">\[
 d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
 \]</span></p>
@@ -208,7 +228,7 @@ d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
 <section id="visual-explanation" class="level4">
 <h4 class="anchored" data-anchor-id="visual-explanation">Visual explanation</h4>
 <p>The two images below each hold a corner and a fixed circle. <strong>Drag the corner</strong> to move it, or drag <em>outside</em> the dashed circle to rotate it.</p>
-<p>That dashed circle is the <strong>descriptor patch</strong> - the only region compared.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the <strong>match breaks</strong>.</p>
+<p>That dashed circle is the <strong>descriptor patch</strong> - the only region compared.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a> Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the <strong>match breaks</strong> <em>(note: might not work on Safari)</em>.</p>
 <div class="demo-frame">
 <iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
@@ -260,7 +280,7 @@ E = [\,t\,]_\times \, R
 <p><span class="math display">\[
 x'^{\top}\, E \, x = 0
 \]</span></p>
-<p>Each match gives one such equation. And although <span class="math inline">\(E\)</span> has nine entries, only their <em>ratios</em> matter - its overall scale is unrecoverable (the same reason we can’t recover the <em>length</em> of <span class="math inline">\(t\)</span>) - so there are really just <strong>eight</strong> unknowns to pin down. That’s why <strong>eight matches</strong> are enough to solve for <span class="math inline">\(E\)</span> .<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
+<p>Each match gives one such equation. And although <span class="math inline">\(E\)</span> has nine entries, only their <em>ratios</em> matter - its overall scale is unrecoverable (the same reason we can’t recover the <em>length</em> of <span class="math inline">\(t\)</span>) - so there are really just <strong>eight</strong> unknowns to pin down. That’s why <strong>eight matches</strong> are enough to solve for <span class="math inline">\(E\)</span> <span class="citation" data-cites="longuethiggins1981"><a href="#ref-longuethiggins1981" role="doc-biblioref">[8]</a></span>.<a href="#fn6" class="footnote-ref" id="fnref6" role="doc-noteref"><sup>6</sup></a></p>
 <p>Once <span class="math inline">\(E\)</span> is known, it <strong>splits back</strong> into <span class="math inline">\(R\)</span> and <span class="math inline">\(t\)</span> - the motion we were after.</p>
 <p>One catch: from a single camera the <em>length</em> of <span class="math inline">\(t\)</span> can’t be recovered, only its direction - so the trajectory and map come out correct in shape but at an arbitrary overall <strong>scale</strong>.</p>
 <hr>
@@ -280,7 +300,7 @@ x'^{\top}\, E \, x = 0
 <h4 class="anchored" data-anchor-id="computing-the-feature-points-3d-coordinates">Computing the feature point’s 3D coordinates</h4>
 <p>Through all previous steps we now have everything needed to compute a point’s location:</p>
 <ul>
-<li><span class="math inline">\(K\)</span>: the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration)</li>
+<li><span class="math inline">\(K\)</span>: the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration</li>
 <li><span class="math inline">\(R_1, t_1\)</span> and <span class="math inline">\(R_2, t_2\)</span>: the <strong>pose</strong> of each camera (from motion estimation)</li>
 <li><span class="math inline">\(x_1 = (u_1, v_1)\)</span> and <span class="math inline">\(x_2 = (u_2, v_2)\)</span>: the <strong>matched pixel</strong> in each image (from feature matching)</li>
 </ul>
@@ -288,7 +308,7 @@ x'^{\top}\, E \, x = 0
 <p><span class="math display">\[
 x \simeq P\,X
 \]</span></p>
-<p>We know <span class="math inline">\(x\)</span> and <span class="math inline">\(P\)</span> for <em>both</em> cameras and want the shared unknown <span class="math inline">\(X\)</span>. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit <span class="math inline">\(X\)</span> is the <strong>Direct Linear Transform (DLT)</strong>, done with a <strong>Singular Value Decomposition (SVD)</strong>. Even though the two rays mostly never meet because of noise, <strong>SVD</strong> ensures that <span class="math inline">\(X\)</span> lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.</p>
+<p>We know <span class="math inline">\(x\)</span> and <span class="math inline">\(P\)</span> for <em>both</em> cameras and want the shared unknown <span class="math inline">\(X\)</span>. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit <span class="math inline">\(X\)</span> is the <strong>Direct Linear Transform (DLT)</strong>, done with a <strong>Singular Value Decomposition (SVD)</strong> <span class="citation" data-cites="hartley2004"><a href="#ref-hartley2004" role="doc-biblioref">[10]</a></span>. Even though the two rays mostly never meet because of noise, <strong>SVD</strong> ensures that <span class="math inline">\(X\)</span> lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.</p>
 <hr>
 </section>
 </section>
@@ -301,14 +321,13 @@ x \simeq P\,X
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
 </div>
 <hr>
-<hr>
 </section>
 <section id="bonus---loop-closure" class="level3">
 <h3 class="anchored" data-anchor-id="bonus---loop-closure">BONUS - Loop Closure</h3>
 <p>Everything so far is <strong>visual odometry</strong>: the camera tracked frame by frame. And because every pose is estimated relative to the previous one, each frame’s small error piles onto all the earlier ones. Over a long path this <strong>drift</strong> bends the trajectory away from the truth - and when the camera revisits a place it saw early on, the points it re-triangulates land <em>beside</em> their originals instead of on them.</p>
 <p><strong>Loop closure</strong> fixes this in two steps:</p>
 <ol type="1">
-<li><strong>Recognise the place</strong> - match the current frame’s appearance against past keyframes. A hit means “I’ve been here before.”</li>
+<li><strong>Recognise the place</strong> - match the current frame’s appearance against past keyframes <span class="citation" data-cites="galvezlopez2012"><a href="#ref-galvezlopez2012" role="doc-biblioref">[11]</a></span>. A hit means “I’ve been here before.”</li>
 <li><strong>Correct the loop</strong> - that match says the current pose is really the old one, so the accumulated error gets pushed back across every pose in between.</li>
 </ol>
 <section id="back-calculating-the-poses" class="level4">
@@ -327,11 +346,55 @@ p_i' = p_i - \frac{i}{N}\,e
 <iframe src="pages/html/loop_closure.html" width="100%" height="580" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
 </div>
-<p>This is what makes it true <strong>SLAM</strong>: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM, and its successor ORB-SLAM3, are built on exactly this pipeline.</p>
-
-
+<p>This is what makes it true <strong>SLAM</strong>: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM <span class="citation" data-cites="murartal2015"><a href="#ref-murartal2015" role="doc-biblioref">[12]</a></span>, and its successor ORB-SLAM3 <span class="citation" data-cites="campos2021"><a href="#ref-campos2021" role="doc-biblioref">[13]</a></span>, are built on exactly this pipeline.</p>
 </section>
 </section>
+</section>
+<section id="references" class="level2">
+<h2 class="anchored" data-anchor-id="references">References</h2>
+<div id="refs" class="references csl-bib-body" data-entry-spacing="0" role="list">
+<div id="ref-nister2004vo" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[1] </div><div class="csl-right-inline">D. Nistér, O. Naroditsky, and J. Bergen, <span>“Visual odometry,”</span> in <em>Proceedings of the 2004 IEEE computer society conference on computer vision and pattern recognition (CVPR)</em>, IEEE, 2004, pp. 652–659.</div>
+</div>
+<div id="ref-rublee2011" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[2] </div><div class="csl-right-inline">E. Rublee, V. Rabaud, K. Konolige, and G. Bradski, <span>“<span>ORB</span>: An efficient alternative to <span>SIFT</span> or <span>SURF</span>,”</span> in <em>2011 international conference on computer vision (ICCV)</em>, IEEE, 2011, pp. 2564–2571.</div>
+</div>
+<div id="ref-rosten2005" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[3] </div><div class="csl-right-inline">E. Rosten and T. Drummond, <span>“Fusing points and lines for high performance tracking,”</span> in <em>Tenth IEEE international conference on computer vision (ICCV)</em>, IEEE, 2005, pp. 1508–1515.</div>
+</div>
+<div id="ref-calonder2010" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[4] </div><div class="csl-right-inline">M. Calonder, V. Lepetit, C. Strecha, and P. Fua, <span>“<span>BRIEF</span>: Binary robust independent elementary features,”</span> in <em>European conference on computer vision (ECCV)</em>, Springer, 2010, pp. 778–792.</div>
+</div>
+<div id="ref-harris1988" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[5] </div><div class="csl-right-inline">C. Harris and M. Stephens, <span>“A combined corner and edge detector,”</span> in <em>Proceedings of the alvey vision conference</em>, 1988, pp. 147–151.</div>
+</div>
+<div id="ref-rosin1999" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[6] </div><div class="csl-right-inline">P. L. Rosin, <span>“Measuring corner properties,”</span> <em>Computer Vision and Image Understanding</em>, vol. 73, no. 2, pp. 291–307, 1999.</div>
+</div>
+<div id="ref-hamming1950" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[7] </div><div class="csl-right-inline">R. W. Hamming, <span>“Error detecting and error correcting codes,”</span> <em>The Bell System Technical Journal</em>, vol. 29, no. 2, pp. 147–160, 1950.</div>
+</div>
+<div id="ref-longuethiggins1981" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[8] </div><div class="csl-right-inline">H. C. Longuet-Higgins, <span>“A computer algorithm for reconstructing a scene from two projections,”</span> <em>Nature</em>, vol. 293, no. 5828, pp. 133–135, 1981.</div>
+</div>
+<div id="ref-nister2004" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[9] </div><div class="csl-right-inline">D. Nistér, <span>“An efficient solution to the five-point relative pose problem,”</span> <em>IEEE Transactions on Pattern Analysis and Machine Intelligence</em>, vol. 26, no. 6, pp. 756–770, 2004.</div>
+</div>
+<div id="ref-hartley2004" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[10] </div><div class="csl-right-inline">R. Hartley and A. Zisserman, <em>Multiple view geometry in computer vision</em>, 2nd ed. Cambridge University Press, 2004.</div>
+</div>
+<div id="ref-galvezlopez2012" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[11] </div><div class="csl-right-inline">D. Gálvez-López and J. D. Tardós, <span>“Bags of binary words for fast place recognition in image sequences,”</span> <em>IEEE Transactions on Robotics</em>, vol. 28, no. 5, pp. 1188–1197, 2012.</div>
+</div>
+<div id="ref-murartal2015" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[12] </div><div class="csl-right-inline">R. Mur-Artal, J. M. M. Montiel, and J. D. Tardós, <span>“<span>ORB-SLAM</span>: A versatile and accurate monocular <span>SLAM</span> system,”</span> <em>IEEE Transactions on Robotics</em>, vol. 31, no. 5, pp. 1147–1163, 2015.</div>
+</div>
+<div id="ref-campos2021" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[13] </div><div class="csl-right-inline">C. Campos, R. Elvira, J. J. Gómez Rodríguez, J. M. M. Montiel, and J. D. Tardós, <span>“<span>ORB-SLAM3</span>: An accurate open-source library for visual, visual–inertial, and multimap <span>SLAM</span>,”</span> <em>IEEE Transactions on Robotics</em>, vol. 37, no. 6, pp. 1874–1890, 2021.</div>
+</div>
+</div>
+
+
 </section>
 
 
@@ -343,7 +406,7 @@ p_i' = p_i - \frac{i}{N}\,e
 <li id="fn3"><p>The patch is a <span class="math inline">\(31\times31\)</span> <em>square</em>, but only the inscribed <strong>circle</strong> is effectively used - rotating the sampling pattern keeps the same pixels only for a circular region, which is why the demo draws a circle.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn4"><p>An <em>uncalibrated</em> camera (no <span class="math inline">\(K\)</span>) still works, but the motion can only be recovered up to an unknown distortion - real angles, shape, and scale are lost.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn5"><p>Here <span class="math inline">\(x\)</span> and <span class="math inline">\(x'\)</span> are <em>normalized</em> image coordinates - the pixel with the calibration divided out (<span class="math inline">\(K^{-1}\cdot\text{pixel}\)</span>) - not raw pixels. Dividing <span class="math inline">\(K\)</span> out is exactly what “calibrated” buys us.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn6"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn6"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> <span class="citation" data-cites="nister2004"><a href="#ref-nister2004" role="doc-biblioref">[9]</a></span> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em> <span class="citation" data-cites="hartley2004"><a href="#ref-hartley2004" role="doc-biblioref">[10]</a></span>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn7"><p>The <span class="math inline">\(\simeq\)</span> means <em>equal up to scale</em>: <span class="math inline">\(P\,X\)</span> gives the pixel’s direction in homogeneous coordinates, but its overall scale (the depth) is unknown.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn8"><p>Here <span class="math inline">\(p_i\)</span> is just a position. Real poses also have rotation, which doesn’t subtract element-wise, so <span class="math inline">\(-\)</span> and <span class="math inline">\(+\)</span> really become the manifold operators <span class="math inline">\(\boxminus\)</span> / <span class="math inline">\(\boxplus\)</span>.<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>

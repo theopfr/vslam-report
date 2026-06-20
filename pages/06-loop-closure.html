@@ -120,7 +120,7 @@ window.Quarto = {
 <p>Everything so far is <strong>visual odometry</strong>: the camera tracked frame by frame. And because every pose is estimated relative to the previous one, each frame’s small error piles onto all the earlier ones. Over a long path this <strong>drift</strong> bends the trajectory away from the truth - and when the camera revisits a place it saw early on, the points it re-triangulates land <em>beside</em> their originals instead of on them.</p>
 <p><strong>Loop closure</strong> fixes this in two steps:</p>
 <ol type="1">
-<li><strong>Recognise the place</strong> - match the current frame’s appearance against past keyframes. A hit means “I’ve been here before.”</li>
+<li><strong>Recognise the place</strong> - match the current frame’s appearance against past keyframes <span class="citation" data-cites="galvezlopez2012">[@galvezlopez2012]</span>. A hit means “I’ve been here before.”</li>
 <li><strong>Correct the loop</strong> - that match says the current pose is really the old one, so the accumulated error gets pushed back across every pose in between.</li>
 </ol>
 <section id="back-calculating-the-poses" class="level4">
@@ -139,7 +139,7 @@ p_i' = p_i - \frac{i}{N}\,e
 <iframe src="pages/html/loop_closure.html" width="100%" height="580" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
 </div>
-<p>This is what makes it true <strong>SLAM</strong>: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM, and its successor ORB-SLAM3, are built on exactly this pipeline.</p>
+<p>This is what makes it true <strong>SLAM</strong>: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM <span class="citation" data-cites="murartal2015">[@murartal2015]</span>, and its successor ORB-SLAM3 <span class="citation" data-cites="campos2021">[@campos2021]</span>, are built on exactly this pipeline.</p>
 
 
 </section>

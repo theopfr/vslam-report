@@ -159,7 +159,7 @@ E = [\,t\,]_\times \, R
 <p><span class="math display">\[
 x'^{\top}\, E \, x = 0
 \]</span></p>
-<p>Each match gives one such equation. And although <span class="math inline">\(E\)</span> has nine entries, only their <em>ratios</em> matter - its overall scale is unrecoverable (the same reason we can’t recover the <em>length</em> of <span class="math inline">\(t\)</span>) - so there are really just <strong>eight</strong> unknowns to pin down. That’s why <strong>eight matches</strong> are enough to solve for <span class="math inline">\(E\)</span> .<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
+<p>Each match gives one such equation. And although <span class="math inline">\(E\)</span> has nine entries, only their <em>ratios</em> matter - its overall scale is unrecoverable (the same reason we can’t recover the <em>length</em> of <span class="math inline">\(t\)</span>) - so there are really just <strong>eight</strong> unknowns to pin down. That’s why <strong>eight matches</strong> are enough to solve for <span class="math inline">\(E\)</span> <span class="citation" data-cites="longuethiggins1981">[@longuethiggins1981]</span>.<a href="#fn3" class="footnote-ref" id="fnref3" role="doc-noteref"><sup>3</sup></a></p>
 <p>Once <span class="math inline">\(E\)</span> is known, it <strong>splits back</strong> into <span class="math inline">\(R\)</span> and <span class="math inline">\(t\)</span> - the motion we were after.</p>
 <p>One catch: from a single camera the <em>length</em> of <span class="math inline">\(t\)</span> can’t be recovered, only its direction - so the trajectory and map come out correct in shape but at an arbitrary overall <strong>scale</strong>.</p>
 
@@ -172,7 +172,7 @@ x'^{\top}\, E \, x = 0
 <ol>
 <li id="fn1"><p>An <em>uncalibrated</em> camera (no <span class="math inline">\(K\)</span>) still works, but the motion can only be recovered up to an unknown distortion - real angles, shape, and scale are lost.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2"><p>Here <span class="math inline">\(x\)</span> and <span class="math inline">\(x'\)</span> are <em>normalized</em> image coordinates - the pixel with the calibration divided out (<span class="math inline">\(K^{-1}\cdot\text{pixel}\)</span>) - not raw pixels. Dividing <span class="math inline">\(K\)</span> out is exactly what “calibrated” buys us.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
-<li id="fn3"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn3"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> <span class="citation" data-cites="nister2004">[@nister2004]</span> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em> <span class="citation" data-cites="hartley2004">[@hartley2004]</span>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">

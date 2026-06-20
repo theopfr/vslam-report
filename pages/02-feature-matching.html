@@ -126,7 +126,7 @@ window.Quarto = {
 <section id="how-it-works" class="level4">
 <h4 class="anchored" data-anchor-id="how-it-works">How it works</h4>
 <p>Every keypoint carries its 256-bit descriptor (as described in the previous section). To match one from frame <span class="math inline">\(F_t\)</span>, we look for the <strong>most similar</strong> descriptor in the previous frame <span class="math inline">\(F_{t-1}\)</span>.</p>
-<p>For binary strings, “similar” means a small <strong>Hamming distance</strong> - the number of bits that differ:</p>
+<p>For binary strings, “similar” means a small <strong>Hamming distance</strong> <span class="citation" data-cites="hamming1950">[@hamming1950]</span> - the number of bits that differ:</p>
 <p><span class="math display">\[
 d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
 \]</span></p>
@@ -136,7 +136,7 @@ d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
 <section id="visual-explanation" class="level4">
 <h4 class="anchored" data-anchor-id="visual-explanation">Visual explanation</h4>
 <p>The two images below each hold a corner and a fixed circle. <strong>Drag the corner</strong> to move it, or drag <em>outside</em> the dashed circle to rotate it.</p>
-<p>That dashed circle is the <strong>descriptor patch</strong> - the only region compared.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the <strong>match breaks</strong>.</p>
+<p>That dashed circle is the <strong>descriptor patch</strong> - the only region compared.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the <strong>match breaks</strong> <em>(note: might not work on Safari)</em>.</p>
 <div class="demo-frame">
 <iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
