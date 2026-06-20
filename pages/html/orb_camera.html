@@ -67,7 +67,7 @@ canvas#out {
 .overlay.hidden { display: none; }
 
 .overlay p {
-  font-size: 11px;
+  font-size: 14px;
   color: rgba(207, 231, 216, 0.6);
   line-height: 1.5;
   max-width: 280px;
@@ -209,6 +209,9 @@ input[type="range"]::-moz-range-thumb {
 
 #richBtn {
   text-transform: uppercase;
+  min-width: 232px;       /* fixed width so it doesn't jump between "off" and "on" */
+  text-align: center;
+  white-space: nowrap;
 }
 </style>
 </head>
@@ -404,7 +407,7 @@ function loop() {
     const n = keypoints.size();
     let shown = n;
     if (richView) {
-      // ORB fires the same corner at several pyramid scales — collapse those
+      // ORB fires the same corner at several pyramid scales - collapse those
       // into one keypoint (keep the strongest within a small radius) so the
       // view shows one clean circle + orientation per feature, not a pile.
       const kps = [];

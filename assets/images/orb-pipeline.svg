@@ -2,8 +2,8 @@
   <style>
     text{font-family:'IBM Plex Mono',ui-monospace,monospace;}
     .ttl{fill:#7dffb2;font-size:13px;font-weight:600;letter-spacing:0.08em;}
-    .cap{fill:#cfe7d8;font-size:12px;font-weight:600;letter-spacing:0.04em;}
-    .sub{fill:rgba(207,231,216,0.6);font-size:11px;}
+    .cap{fill:#cfe7d8;font-size:14px;font-weight:600;letter-spacing:0.04em;}
+    .sub{fill:rgba(207,231,216,0.6);font-size:14px;}
     .ring{fill:rgba(207,231,216,0.18);}
     .arc{fill:#7dffb2;}
     .pix{fill:#cfe7d8;}
@@ -35,9 +35,9 @@
   <circle cx="102.4" cy="107.5" r="4" class="ring"/>
   <rect x="115" y="145" width="10" height="10" class="pix"/>
   <text x="120" size="9" y="135" text-anchor="middle" class="sub">p</text>
-  <text x="120" y="252" size="12" text-anchor="middle" class="cap">1 · FAST</text>
+  <text x="120" y="252" size="12" text-anchor="middle" class="cap">FAST corner detection</text>
   <text x="120" y="270" size="12" text-anchor="middle" class="sub">≥ 9 contiguous ring</text>
-  <text x="120" y="282" size="12" text-anchor="middle" class="sub">pixels brighter/darker</text>
+  <text x="120" y="284" size="12" text-anchor="middle" class="sub">pixels brighter/darker</text>
 
   <path d="M178 150 L300 150" class="flow" marker-end="url(#a)"/>
 
@@ -48,9 +48,9 @@
   <circle cx="397" cy="124" r="3.5" class="amber"/>
   <path d="M360 132 A 22 22 0 0 1 378 139" fill="none" stroke="#f5b14a" stroke-width="1"/>
   <text x="372" y="128" size="9" class="sub" fill="#f5b14a">θ</text>
-  <text x="360" y="252" size="12" text-anchor="middle" class="cap">2 · Orientation</text>
+  <text x="360" y="252" size="12" text-anchor="middle" class="cap">Orientation</text>
   <text x="360" y="270" size="11" text-anchor="middle" class="sub">intensity-centroid</text>
-  <text x="360" y="282" size="11" text-anchor="middle" class="sub">angle θ → rotation</text>
+  <text x="360" y="284" size="11" text-anchor="middle" class="sub">finding rotation angle</text>
 
   <path d="M418 150 L540 150" class="flow" marker-end="url(#a)"/>
 
@@ -69,9 +69,9 @@
     <circle cx="612" cy="188" r="2.6"/><circle cx="562" cy="176" r="2.6"/>
   </g>
   <text x="600" y="218" text-anchor="middle" class="mono">1 0 1 1 0 1 0 0 …</text>
-  <text x="600" y="252" size="1w" text-anchor="middle" class="cap">3 · rBRIEF</text>
+  <text x="600" y="252" size="1w" text-anchor="middle" class="cap">rBRIEF</text>
   <text x="600" y="270" size="11" text-anchor="middle" class="sub">pairwise intensity tests</text>
-  <text x="600" y="282" size="11" text-anchor="middle" class="sub">→ 256-bit descriptor</text>
+  <text x="600" y="284" size="11" text-anchor="middle" class="sub">→ 256-bit descriptor</text>
 
   <path d="M662 150 L780 150" class="flow" marker-end="url(#a)"/>
 
@@ -84,9 +84,9 @@
   <circle cx="826" cy="157" r="2.4" class="arc"/>
   <circle cx="834" cy="132" r="2.2" class="arc"/>
   <circle cx="839" cy="112" r="2" class="arc"/>
-  <text x="840" y="252" size="12" text-anchor="middle" class="cap">4 · Scale pyramid</text>
+  <text x="840" y="252" size="12" text-anchor="middle" class="cap">Scale pyramid</text>
   <text x="840" y="270" size="11" text-anchor="middle" class="sub">detect at each level</text>
-  <text x="840" y="282" size="11" text-anchor="middle" class="sub">→ scale invariance</text>
+  <text x="840" y="284" size="11" text-anchor="middle" class="sub">→ scale invariance</text>
 
   <defs>
     <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">

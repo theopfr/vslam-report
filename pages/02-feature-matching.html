@@ -117,18 +117,41 @@ window.Quarto = {
 
 
 
-<p>Once features are extracted, they have to be <strong>matched</strong> across frames - finding the same real-world point seen from two different camera positions. Below, the left panel is your live camera and the right panel is a frame from a moment ago; lines link the keypoints ORB matched between them. Move the camera slowly to see the correspondences shift.</p>
-<iframe src="pages/html/orb_matching.html" width="100%" height="370" frameborder="0" scrolling="no" allow="camera" style="display:block;border:0;"></iframe>
+<p>Once features are detected, they have to be <strong>matched</strong> across frames - locating the same real-world point seen from two different camera positions.</p>
+<p>Below, the left panel is your live camera and the right is a frame from a moment ago; the lines link the keypoints ORB matched between them. Move the camera (or something it captures) slowly to watch it connect corresponding feature points.</p>
+<div class="demo-frame">
+<iframe src="pages/html/orb_matching.html" width="100%" height="370" frameborder="0" scrolling="no" allow="camera" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading OpenCV…</div>
+</div>
 <section id="how-it-works" class="level4">
 <h4 class="anchored" data-anchor-id="how-it-works">How it works</h4>
-<p>Each keypoint carries the 256-bit descriptor from the previous step. Matching asks: for a descriptor in frame <span class="math inline">\(F_t\)</span>, <strong>which descriptor in the earlier frame <span class="math inline">\(F_{t-1}\)</span> is most similar?</strong> Similarity is the <strong>Hamming distance</strong> - the number of differing bits (a fast XOR + bit-count) - and each descriptor is paired with its nearest neighbour. A few cheap filters (a distance threshold, a cross-check) throw out the unreliable pairs, leaving a set of <em>probable</em> correspondences. The next step, <strong>Camera Motion Estimation</strong>, makes the final call on which ones are geometrically consistent.</p>
-<p>To see what a descriptor actually responds to, the two images below each hold a corner plus a fixed circle in the top-left. <strong>Drag the corner</strong> to move it (<em>inside</em> the dashed circle), or <em>outside</em> to rotate. The dashed circle is the <strong>descriptor patch</strong> - the only region that’s compared. Because the descriptor is centred on the corner and rotation-invariant, it keeps matching as you move and rotate it - until you drag it near the circle: once that intrudes on the patch, the bits flip and the <strong>match breaks</strong>.</p>
-<iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+<p>Every keypoint carries its 256-bit descriptor (as described in the previous section). To match one from frame <span class="math inline">\(F_t\)</span>, we look for the <strong>most similar</strong> descriptor in the previous frame <span class="math inline">\(F_{t-1}\)</span>.</p>
+<p>For binary strings, “similar” means a small <strong>Hamming distance</strong> - the number of bits that differ:</p>
+<p><span class="math display">\[
+d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
+\]</span></p>
+<p>In short, it uses <strong>XOR</strong> and a bit count, which are very cheap and quick instructions on the CPU. Each descriptor is then paired with its <strong>nearest neighbour</strong>, the one with the smallest <span class="math inline">\(d_H\)</span>.</p>
+<p>The nearest neighbour can still be wrong, so weak matches are filtered out by doing a <strong>cross-check</strong>: the pair must agree both ways (<span class="math inline">\(A\!\to\!B\)</span> and <span class="math inline">\(B\!\to\!A\)</span>).</p>
+</section>
+<section id="visual-explanation" class="level4">
+<h4 class="anchored" data-anchor-id="visual-explanation">Visual explanation</h4>
+<p>The two images below each hold a corner and a fixed circle. <strong>Drag the corner</strong> to move it, or drag <em>outside</em> the dashed circle to rotate it.</p>
+<p>That dashed circle is the <strong>descriptor patch</strong> - the only region compared.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the <strong>match breaks</strong>.</p>
+<div class="demo-frame">
+<iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
+</div>
 
 
 </section>
 
-</main> <!-- /main -->
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>The patch is a <span class="math inline">\(31\times31\)</span> <em>square</em>, but only the inscribed <strong>circle</strong> is effectively used - rotating the sampling pattern keeps the same pixels only for a circular region, which is why the demo draws a circle.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";

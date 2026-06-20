@@ -33,15 +33,20 @@ const ctx = canvas.getContext('2d');
 const PS = 120, SIZE = 200, LX = 40, RX = 480, PY = 30;
 const SC = SIZE / PS;                 // display scale
 const PATCH_R = 22, N = 48, THRESH = 10;
-const DRAG_MIN = 0.25 * PS, DRAG_MAX = 0.75 * PS;   // limit how far the corner can be dragged
+const DRAG_MIN = 0.30 * PS, DRAG_MAX = 0.70 * PS;   // limit how far the corner can be dragged
 const DARK = 60, LIGHT = 205;
 const CIRC = { x: 6, y: 6, r: 44 };   // fixed circle in the top-left (its lower-right quarter shows)
 const DEF = { x: 64, y: 74 };         // default corner position (patch is clean here)
 
 let cornerX = DEF.x, cornerY = DEF.y, angLeft = 0;
 
+// seeded PRNG (mulberry32) so the BRIEF pattern + noise are the SAME every reload,
+// like ORB's fixed learned pattern - not regenerated randomly each time
+let _seed = 0x5eed1234;
+function rand(){ _seed = (_seed + 0x6D2B79F5) | 0; let t = Math.imul(_seed ^ (_seed >>> 15), 1 | _seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+
 // BRIEF pattern: 48 offset-pairs within the patch
-function randn(){ const u=Math.random(),v=Math.random(); return Math.sqrt(-2*Math.log(u+1e-9))*Math.cos(2*Math.PI*v); }
+function randn(){ const u=rand(),v=rand(); return Math.sqrt(-2*Math.log(u+1e-9))*Math.cos(2*Math.PI*v); }
 function rOff(){ let x,y; do { x=randn()*PATCH_R*0.5; y=randn()*PATCH_R*0.5; } while (x*x+y*y > PATCH_R*PATCH_R); return [x,y]; }
 const PAIRS = Array.from({length:N}, () => ({ a:rOff(), b:rOff() }));
 

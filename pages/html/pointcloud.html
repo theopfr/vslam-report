@@ -14,28 +14,27 @@ canvas#stage {
 }
 canvas#stage:active { cursor: grabbing; }
 .hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
-.params { margin-top: 0.9rem; display: flex; align-items: flex-end; gap: 1rem; }
-.param { flex: 1; }
-.param label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.3rem; }
-.param label .val { color: #7dffb2; }
+.params { margin-top: 0.9rem; }
+.track-label { display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.55rem; }
+.track-label .val { color: #7dffb2; }
+.track-row { display: flex; align-items: center; gap: 1.2rem; }
+.track-row input[type="range"] { flex: 1; }
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: rgba(207,231,216,0.25); border-radius: 2px; outline: none; cursor: pointer; }
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
 input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
-.btn { font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(207,231,216,0.75); background: transparent; border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; padding: 0.55rem 1rem; cursor: pointer; white-space: nowrap; }
+.btn { font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(207,231,216,0.75); background: transparent; border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; padding: 0.55rem 1rem; cursor: pointer; white-space: nowrap; min-width: 130px; text-align: center; }
 .btn:hover { color: #7dffb2; border-color: #7dffb2; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <canvas id="stage" width="720" height="540"></canvas>
-  <div class="hint">drag to orbit · play the sequence to watch the map fill in as the camera moves</div>
-
   <div class="params">
-    <div class="param">
-      <label for="frame">Frames processed <span class="val" id="frame-val">14 / 14</span></label>
+    <label class="track-label" for="frame">Frames processed <span class="val" id="frame-val">14 / 14</span></label>
+    <div class="track-row">
       <input type="range" id="frame" min="1" max="14" step="1" value="14">
+      <button class="btn" id="play">▶ play</button>
     </div>
-    <button class="btn" id="play">▶ play</button>
   </div>
 </div>
 

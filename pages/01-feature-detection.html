@@ -117,33 +117,44 @@ window.Quarto = {
 
 
 
-<p>Feature detection finds distinctive, repeatable points in an image, corners and blobs that can be re-identified across frames. Below you can run an ORB feature detector live on your own camera feed:</p>
-<iframe src="pages/html/orb_camera.html" width="100%" height="775" frameborder="0" scrolling="no" allow="camera" style="display:block;border:0;"></iframe>
-<section id="how-it-works" class="level4">
-<h4 class="anchored" data-anchor-id="how-it-works">How it works</h4>
+<p>Feature detection finds distinctive, repeatable points in an image that can be re-identified across frames. Below you can run a feature detector live on your own camera feed:</p>
+<div class="demo-frame">
+<iframe src="pages/html/orb_camera.html" width="100%" height="775" frameborder="0" scrolling="no" allow="camera" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading OpenCV…</div>
+</div>
+<section id="how-orb-finds-and-describes-features" class="level4">
+<h4 class="anchored" data-anchor-id="how-orb-finds-and-describes-features">How ORB finds and describes features</h4>
 <p>The demo above runs <strong>ORB</strong> (Oriented FAST and Rotated BRIEF), a fast combination of a corner detector (<strong>FAST</strong>) and a binary descriptor (<strong>BRIEF</strong>). This feature detection method consists of four distinct steps, as shown below:</p>
 <img src="assets/images/orb-pipeline.svg" alt="ORB feature detection pipeline: FAST corner test, intensity-centroid orientation, rotated BRIEF descriptor, and scale pyramid" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;">
 <p><br></p>
 <ol type="1">
-<li><strong>FAST Corner test:</strong> Look at a ring of 16 pixels around a candidate pixel <span class="math inline">\(p\)</span>. Each ring pixel of intensity <span class="math inline">\(I_x\)</span> is classified against the centre intensity <span class="math inline">\(I_p\)</span> and a threshold <span class="math inline">\(t\)</span>: <span class="math display">\[
+<li><strong>FAST corner detection:</strong> Look at a ring of 16 pixels around a candidate pixel <span class="math inline">\(p\)</span>.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> Each ring pixel of intensity <span class="math inline">\(I_x\)</span> is classified against the centre intensity <span class="math inline">\(I_p\)</span> and a threshold <span class="math inline">\(t\)</span>: <span class="math display">\[
 S_x = \begin{cases}
 \text{brighter} &amp; \text{if } I_x \geq I_p + t \\
 \text{similar}  &amp; \text{if } I_p - t &lt; I_x &lt; I_p + t \\
 \text{darker}   &amp; \text{if } I_x \leq I_p - t
 \end{cases}
-\]</span> where <span class="math inline">\(I_p\)</span> is the candidate’s intensity and <span class="math inline">\(t\)</span> a fixed threshold (the <code>FAST THRESHOLD</code> slider). <span class="math inline">\(p\)</span> is a corner if <span class="math inline">\(\geq 9\)</span> contiguous ring pixels are <em>all brighter</em> or <em>all darker</em>. Survivors are ranked by Harris corner score and the best <span class="math inline">\(N\)</span> (the <code>MAX FEATURES</code> slider) are kept.</li>
+\]</span> where <span class="math inline">\(I_p\)</span> is the candidate’s intensity and <span class="math inline">\(t\)</span> a fixed threshold (the <code>FAST THRESHOLD</code> slider). <span class="math inline">\(p\)</span> is a corner if <span class="math inline">\(\geq 9\)</span> contiguous ring pixels are <em>all brighter</em> or <em>all darker</em>. Survivors are ranked by their <strong>Harris corner score</strong> - how much the intensity changes around each point - and the best <span class="math inline">\(N\)</span> (the <code>MAX FEATURES</code> slider) are kept.</li>
 </ol>
 <img src="assets/images/corner-test.svg" alt="Harris corner detection" style="width:100%;max-width:940px;height:auto;display:block;margin:0.5rem auto;transform:scale(0.75);">
 <ol start="2" type="1">
 <li><strong>Corner Orientation:</strong> Each corner is assigned an angle using the <strong>intensity centroid</strong> method, which points from the patch centre toward its brightest side (the orientation line in the demo’s <strong>Rich keypoints</strong> view). Steering the descriptor by this angle <span class="math inline">\(\theta\)</span> is what makes ORB rotation-invariant.</li>
-<li><strong>BRIEF Descriptor:</strong> Take the <span class="math inline">\(31\times31\)</span> patch centred on the corner. A <em>fixed</em> set of 256 pixel pairs <span class="math inline">\((a_i,b_i)\)</span> - read from a precomputed <strong>lookup table</strong>, already rotated to the corner’s angle <span class="math inline">\(\theta\)</span> so the result is rotation-invariant - is sampled inside this patch. Each pair yields one bit by comparing intensity: <span class="math inline">\(\tau_i = 1\)</span> if <span class="math inline">\(I(a_i) &lt; I(b_i)\)</span>, else <span class="math inline">\(0\)</span>. Concatenating all 256 gives a <strong>256-bit (32-byte)</strong> descriptor. Later, descriptors will be compared across frames to find correspondences - the same scene point seen in two images.</li>
-<li><strong>Scale pyramid:</strong> Steps 1–3 run on each level of a pyramid of <span class="math inline">\(N\)</span> (the <code>PYRAMID LEVELS</code> slider) progressively downscaled images (ratio = <code>PYRAMID SCALE FACTOR</code> slider). A feature is detected at whatever level it is sharpest, giving <strong>scale invariance</strong> - the fixed <span class="math inline">\(31\times31\)</span> patch covers more of the scene on coarser levels. The demo otherwise draws just a dot per keypoint; the descriptors feed the matching step next.</li>
+<li><strong>BRIEF Descriptor:</strong> Take the <span class="math inline">\(31\times31\)</span> patch centred on the corner. A <em>fixed</em> set of 256 pixel pairs <span class="math inline">\((a_i,b_i)\)</span> - read from a precomputed <strong>lookup table</strong><a href="#fn2" class="footnote-ref" id="fnref2" role="doc-noteref"><sup>2</sup></a>, already rotated to the corner’s angle <span class="math inline">\(\theta\)</span> so the result is rotation-invariant - is sampled inside this patch. Each pair yields one bit by comparing intensity: <span class="math inline">\(\tau_i = 1\)</span> if <span class="math inline">\(I(a_i) &lt; I(b_i)\)</span>, else <span class="math inline">\(0\)</span>. Concatenating all 256 gives a <strong>256-bit (32-byte)</strong> descriptor. Later, descriptors will be compared across frames to find correspondences - the same scene point seen in two images.</li>
+<li><strong>Scale pyramid:</strong> Steps 1–3 run on each level of a pyramid of <span class="math inline">\(N\)</span> (the <code>PYRAMID LEVELS</code> slider) progressively downscaled images (ratio = <code>PYRAMID SCALE FACTOR</code> slider). A feature is detected at whatever level it is sharpest, giving <strong>scale invariance</strong> - the fixed <span class="math inline">\(31\times31\)</span> patch covers more of the scene on coarser levels.</li>
 </ol>
+<img src="assets/images/scale-pyramid.svg" alt="Image pyramid: the same fixed-size detector runs on each progressively downscaled level, so a corner is detected on whichever level it is sharpest - giving scale invariance" style="width:100%;max-width:660px;height:auto;display:block;margin:0.5rem auto;">
 
 
 </section>
 
-</main> <!-- /main -->
+
+<div id="quarto-appendix" class="default"><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>For speed, FAST first checks just 4 pixels (top, bottom, left, right of the ring); unless at least three already pass the threshold, the candidate is rejected without testing all 16.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn2"><p>The pair positions in the lookup table are not random, they were determined by the original authors to be high-variance and low-correlation.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";
