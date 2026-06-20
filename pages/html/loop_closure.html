@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: transparent; color: #cfe7d8; letter-spacing: 0.04em; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 1rem; }
+canvas#stage {
+  display: block; width: 100%; height: auto;
+  border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 8px;
+  background: #0b0f0e; box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
+}
+.hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
+.controls { margin-top: 0.9rem; display: flex; align-items: flex-end; gap: 1.2rem; }
+.param { flex: 1; }
+.param label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.35rem; }
+.param label .val { color: #7dffb2; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: rgba(207,231,216,0.25); border-radius: 2px; outline: none; cursor: pointer; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+.btn { font-family: inherit; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #0b0f0e; background: #7dffb2; border: none; border-radius: 6px; padding: 0.7rem 1.2rem; cursor: pointer; font-weight: 600; white-space: nowrap; box-shadow: 0 0 12px rgba(0,255,136,0.3); transition: box-shadow 0.2s, transform 0.08s, background 0.2s; }
+.btn:hover:not(:disabled) { box-shadow: 0 0 18px rgba(0,255,136,0.55); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { background: rgba(125,255,178,0.25); color: rgba(11,15,14,0.6); cursor: not-allowed; box-shadow: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="stage" width="720" height="460"></canvas>
+  <div class="hint">the camera drives a loop · raise the drift to see the estimate veer off · then close the loop to snap it back</div>
+
+  <div class="controls">
+    <div class="param">
+      <label for="drift">Accumulated drift <span class="val" id="drift-val">60</span></label>
+      <input type="range" id="drift" min="0" max="100" step="1" value="60">
+    </div>
+    <button class="btn" id="closeBtn">Close the loop</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+
+const N = 72;                       // number of poses around the loop
+const CX = 360, CY = 215;          // loop centre on the canvas
+
+// ---- ground-truth loop (a wavy closed route) ----
+const trueP = [];
+for (let i = 0; i <= N; i++) {
+  const a = 2 * Math.PI * i / N;
+  const rr = 138 + 30 * Math.sin(3 * a);
+  trueP.push([CX + rr * Math.cos(a), CY + rr * Math.sin(a) * 0.82]);
+}
+// per-segment lengths and headings of the true path
+const seg = [];
+for (let i = 1; i <= N; i++) {
+  const dx = trueP[i][0] - trueP[i-1][0], dy = trueP[i][1] - trueP[i-1][1];
+  seg.push({ ds: Math.hypot(dx, dy), h: Math.atan2(dy, dx) });
+}
+
+// ---- landmarks seen near the start (a little cluster of map points) ----
+const lmOff = [[-26,-14],[14,-30],[34,8],[-10,26],[40,-18],[-32,18],[8,-6]];
+const trueLM = lmOff.map(o => [trueP[0][0] + o[0], trueP[0][1] + o[1]]);
+
+// ---- rebuild the drifted estimate: integrate the true motions but add a
+// small constant heading bias each step, so error accumulates around the loop ----
+let driftP = [];
+function buildDrift() {
+  const bias = (+driftEl.value / 100) * 0.011;   // radians of drift per step
+  driftP = [trueP[0].slice()];
+  let h = seg[0].h;
+  for (let i = 1; i <= N; i++) {
+    if (i > 1) h += (seg[i-1].h - seg[i-2].h) + bias;
+    driftP.push([ driftP[i-1][0] + seg[i-1].ds * Math.cos(h),
+                  driftP[i-1][1] + seg[i-1].ds * Math.sin(h) ]);
+  }
+}
+
+const lerp = (a, b, t) => [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t];
+
+let t = 0, closing = false, phase = 0;   // t = loop-closure progress (0 open … 1 closed)
+
+const driftEl  = document.getElementById('drift');
+const driftVal = document.getElementById('drift-val');
+const closeBtn = document.getElementById('closeBtn');
+
+function node(p, r, col, glow) {
+  ctx.fillStyle = col;
+  if (glow) { ctx.shadowColor = col; ctx.shadowBlur = 10; }
+  ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+}
+function label(p, txt, col, dx, dy) {
+  ctx.fillStyle = col; ctx.font = '11px IBM Plex Mono, monospace';
+  ctx.fillText(txt, p[0] + dx, p[1] + dy);
+}
+
+function render() {
+  // current (possibly partially corrected) trajectory + drifted landmark copies
+  const cur = trueP.map((tp, i) => lerp(driftP[i], tp, t));
+  const driftVec = [ (driftP[N][0]-trueP[N][0]), (driftP[N][1]-trueP[N][1]) ];
+  const now = cur[N], start = cur[0];
+  const gap = Math.hypot(now[0]-start[0], now[1]-start[1]);
+  const detected = gap > 4;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // landmarks: the true/start view (anchored) + the drifted "seen-again" copy
+  for (let k = 0; k < trueLM.length; k++) {
+    const lateRaw = [trueLM[k][0] + driftVec[0], trueLM[k][1] + driftVec[1]];
+    const late = lerp(lateRaw, trueLM[k], t);
+    node(trueLM[k], 3, 'rgba(143,211,255,0.9)', false);          // anchored map point
+    node(late,      3, 'rgba(255,92,240,0.85)', false);          // drifted duplicate
+  }
+
+  // trajectory
+  ctx.strokeStyle = 'rgba(125,255,178,0.85)'; ctx.lineWidth = 2.5;
+  ctx.shadowColor = 'rgba(0,255,136,0.25)'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.moveTo(cur[0][0], cur[0][1]);
+  for (let i = 1; i <= N; i++) ctx.lineTo(cur[i][0], cur[i][1]);
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  // keyframe dots
+  for (let i = 0; i <= N; i += 6) node(cur[i], 2.2, 'rgba(125,255,178,0.5)', false);
+
+  // loop-closure constraint: link "now" back to the recognised "start"
+  if (detected) {
+    const pulse = 0.45 + 0.35 * Math.sin(phase);
+    ctx.strokeStyle = `rgba(255,92,240,${pulse})`; ctx.lineWidth = 2; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(now[0], now[1]); ctx.lineTo(start[0], start[1]); ctx.stroke();
+    ctx.setLineDash([]);
+    const mid = [(now[0]+start[0])/2, (now[1]+start[1])/2];
+    label(mid, 'same place →', 'rgba(255,92,240,0.9)', 8, -6);
+  }
+
+  // start + now markers
+  node(start, 5, '#7dffb2', true); label(start, 'start', '#7dffb2', 9, -8);
+  if (detected) { node(now, 5, '#f5b14a', true); label(now, 'now', '#f5b14a', 9, 16); }
+
+  // readout
+  ctx.fillStyle = 'rgba(207,231,216,0.6)'; ctx.font = '11px IBM Plex Mono, monospace';
+  ctx.fillText(`accumulated drift: ${gap.toFixed(0)} px`, 14, 24);
+  // legend
+  ctx.fillStyle = 'rgba(207,231,216,0.5)'; ctx.font = '10px IBM Plex Mono, monospace';
+  ctx.fillText('green = trajectory · blue = mapped points · magenta = the same points re-seen after drift', 14, canvas.height - 12);
+}
+
+let driftStart = 0;   // drift value captured when closing begins
+
+function frame() {
+  phase += 0.06;
+  if (closing) {
+    t = Math.min(1, t + 0.03);
+    // walk the drift slider down toward 0 in step with the closing animation
+    driftEl.value = Math.round(driftStart * (1 - t));
+    driftVal.textContent = driftEl.value;
+    if (t >= 1) closing = false;
+  }
+  closeBtn.disabled = (t >= 1) || closing || (+driftEl.value === 0);
+  closeBtn.textContent = t >= 1 ? 'Loop closed ✓' : 'Close the loop';
+  render();
+  requestAnimationFrame(frame);
+}
+
+driftEl.addEventListener('input', () => {
+  driftVal.textContent = driftEl.value;
+  t = 0; closing = false; buildDrift();
+});
+closeBtn.addEventListener('click', () => { if (t < 1) { driftStart = +driftEl.value; closing = true; } });
+
+buildDrift();
+frame();
+</script>
+</body>
+</html>

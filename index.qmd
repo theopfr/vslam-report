@@ -52,3 +52,9 @@ Run frame after frame, these steps are called **visual odometry** [@nister2004vo
 {{< include pages/05-pointcloud.qmd >}}
 
 ---
+
+---
+
+### BONUS - Loop Closure
+
+{{< include pages/06-loop-closure.qmd >}}
