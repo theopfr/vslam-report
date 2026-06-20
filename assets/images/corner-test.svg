@@ -1,0 +1,159 @@
+<svg viewBox="0 0 790 310" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  </style>
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 Z" fill="#22c55e"/>
+    </marker>
+  </defs>
+
+  <!--
+    GRID: 11×11, cell=22px, origin (30,30)
+    x = 30+col*22,  y = 30+row*22
+
+    PYRAMID: apex = p = (col=5, row=4), slope=3 (fans out fast below)
+      row 4  (y=118): col 5 only        ← p, single pixel tip
+      row 5  (y=140): cols 2–8
+      row 6  (y=162): cols 0–10 (full)
+      rows 7–10: full
+
+    RING (Bresenham r=3 clockwise from top around p=(5,4)):
+       1:(5,1) 2:(6,1) 3:(7,2) 4:(8,3)  5:(8,4) 6:(8,5) 7:(7,6) 8:(6,7)
+       9:(5,7) 10:(4,7) 11:(3,6) 12:(2,5) 13:(2,4) 14:(2,3) 15:(3,2) 16:(4,1)
+
+    ON pyramid: 6,7,8,9,10,11,12  (7 consecutive bright)
+    OFF pyramid: 1,2,3,4,5,13,14,15,16
+  -->
+
+  <!-- ── 11×11 neutral grid ── -->
+  <g fill="rgba(207,231,216,0.04)" stroke="rgba(207,231,216,0.10)" stroke-width="0.5">
+    <rect x="30"  y="30"  width="21" height="21"/><rect x="52"  y="30"  width="21" height="21"/><rect x="74"  y="30"  width="21" height="21"/><rect x="96"  y="30"  width="21" height="21"/><rect x="118" y="30"  width="21" height="21"/><rect x="140" y="30"  width="21" height="21"/><rect x="162" y="30"  width="21" height="21"/><rect x="184" y="30"  width="21" height="21"/><rect x="206" y="30"  width="21" height="21"/><rect x="228" y="30"  width="21" height="21"/><rect x="250" y="30"  width="21" height="21"/>
+    <rect x="30"  y="52"  width="21" height="21"/><rect x="52"  y="52"  width="21" height="21"/><rect x="74"  y="52"  width="21" height="21"/><rect x="96"  y="52"  width="21" height="21"/><rect x="118" y="52"  width="21" height="21"/><rect x="140" y="52"  width="21" height="21"/><rect x="162" y="52"  width="21" height="21"/><rect x="184" y="52"  width="21" height="21"/><rect x="206" y="52"  width="21" height="21"/><rect x="228" y="52"  width="21" height="21"/><rect x="250" y="52"  width="21" height="21"/>
+    <rect x="30"  y="74"  width="21" height="21"/><rect x="52"  y="74"  width="21" height="21"/><rect x="74"  y="74"  width="21" height="21"/><rect x="96"  y="74"  width="21" height="21"/><rect x="118" y="74"  width="21" height="21"/><rect x="140" y="74"  width="21" height="21"/><rect x="162" y="74"  width="21" height="21"/><rect x="184" y="74"  width="21" height="21"/><rect x="206" y="74"  width="21" height="21"/><rect x="228" y="74"  width="21" height="21"/><rect x="250" y="74"  width="21" height="21"/>
+    <rect x="30"  y="96"  width="21" height="21"/><rect x="52"  y="96"  width="21" height="21"/><rect x="74"  y="96"  width="21" height="21"/><rect x="96"  y="96"  width="21" height="21"/><rect x="118" y="96"  width="21" height="21"/><rect x="140" y="96"  width="21" height="21"/><rect x="162" y="96"  width="21" height="21"/><rect x="184" y="96"  width="21" height="21"/><rect x="206" y="96"  width="21" height="21"/><rect x="228" y="96"  width="21" height="21"/><rect x="250" y="96"  width="21" height="21"/>
+    <rect x="30"  y="118" width="21" height="21"/><rect x="52"  y="118" width="21" height="21"/><rect x="74"  y="118" width="21" height="21"/><rect x="96"  y="118" width="21" height="21"/><rect x="118" y="118" width="21" height="21"/><rect x="140" y="118" width="21" height="21"/><rect x="162" y="118" width="21" height="21"/><rect x="184" y="118" width="21" height="21"/><rect x="206" y="118" width="21" height="21"/><rect x="228" y="118" width="21" height="21"/><rect x="250" y="118" width="21" height="21"/>
+    <rect x="30"  y="140" width="21" height="21"/><rect x="52"  y="140" width="21" height="21"/><rect x="74"  y="140" width="21" height="21"/><rect x="96"  y="140" width="21" height="21"/><rect x="118" y="140" width="21" height="21"/><rect x="140" y="140" width="21" height="21"/><rect x="162" y="140" width="21" height="21"/><rect x="184" y="140" width="21" height="21"/><rect x="206" y="140" width="21" height="21"/><rect x="228" y="140" width="21" height="21"/><rect x="250" y="140" width="21" height="21"/>
+    <rect x="30"  y="162" width="21" height="21"/><rect x="52"  y="162" width="21" height="21"/><rect x="74"  y="162" width="21" height="21"/><rect x="96"  y="162" width="21" height="21"/><rect x="118" y="162" width="21" height="21"/><rect x="140" y="162" width="21" height="21"/><rect x="162" y="162" width="21" height="21"/><rect x="184" y="162" width="21" height="21"/><rect x="206" y="162" width="21" height="21"/><rect x="228" y="162" width="21" height="21"/><rect x="250" y="162" width="21" height="21"/>
+    <rect x="30"  y="184" width="21" height="21"/><rect x="52"  y="184" width="21" height="21"/><rect x="74"  y="184" width="21" height="21"/><rect x="96"  y="184" width="21" height="21"/><rect x="118" y="184" width="21" height="21"/><rect x="140" y="184" width="21" height="21"/><rect x="162" y="184" width="21" height="21"/><rect x="184" y="184" width="21" height="21"/><rect x="206" y="184" width="21" height="21"/><rect x="228" y="184" width="21" height="21"/><rect x="250" y="184" width="21" height="21"/>
+    <rect x="30"  y="206" width="21" height="21"/><rect x="52"  y="206" width="21" height="21"/><rect x="74"  y="206" width="21" height="21"/><rect x="96"  y="206" width="21" height="21"/><rect x="118" y="206" width="21" height="21"/><rect x="140" y="206" width="21" height="21"/><rect x="162" y="206" width="21" height="21"/><rect x="184" y="206" width="21" height="21"/><rect x="206" y="206" width="21" height="21"/><rect x="228" y="206" width="21" height="21"/><rect x="250" y="206" width="21" height="21"/>
+    <rect x="30"  y="228" width="21" height="21"/><rect x="52"  y="228" width="21" height="21"/><rect x="74"  y="228" width="21" height="21"/><rect x="96"  y="228" width="21" height="21"/><rect x="118" y="228" width="21" height="21"/><rect x="140" y="228" width="21" height="21"/><rect x="162" y="228" width="21" height="21"/><rect x="184" y="228" width="21" height="21"/><rect x="206" y="228" width="21" height="21"/><rect x="228" y="228" width="21" height="21"/><rect x="250" y="228" width="21" height="21"/>
+    <rect x="30"  y="250" width="21" height="21"/><rect x="52"  y="250" width="21" height="21"/><rect x="74"  y="250" width="21" height="21"/><rect x="96"  y="250" width="21" height="21"/><rect x="118" y="250" width="21" height="21"/><rect x="140" y="250" width="21" height="21"/><rect x="162" y="250" width="21" height="21"/><rect x="184" y="250" width="21" height="21"/><rect x="206" y="250" width="21" height="21"/><rect x="228" y="250" width="21" height="21"/><rect x="250" y="250" width="21" height="21"/>
+  </g>
+
+  <!-- ── PYRAMID fill (p is the single tip pixel) ── -->
+  <g fill="rgba(125,255,178,0.5)" stroke="rgba(125,255,178,0.15)" stroke-width="0.3">
+    <!-- row 4 (y=118): col 5 only — this is p, drawn separately below -->
+    <!-- row 5 (y=140): cols 2–8 -->
+    <rect x="74"  y="140" width="21" height="21"/>
+    <rect x="96"  y="140" width="21" height="21"/>
+    <rect x="118" y="140" width="21" height="21"/>
+    <rect x="140" y="140" width="21" height="21"/>
+    <rect x="162" y="140" width="21" height="21"/>
+    <rect x="184" y="140" width="21" height="21"/>
+    <rect x="206" y="140" width="21" height="21"/>
+    <!-- rows 6–10 (y=162..250): full width -->
+    <rect x="30" y="162" width="21" height="21"/><rect x="52" y="162" width="21" height="21"/><rect x="74" y="162" width="21" height="21"/><rect x="96" y="162" width="21" height="21"/><rect x="118" y="162" width="21" height="21"/><rect x="140" y="162" width="21" height="21"/><rect x="162" y="162" width="21" height="21"/><rect x="184" y="162" width="21" height="21"/><rect x="206" y="162" width="21" height="21"/><rect x="228" y="162" width="21" height="21"/><rect x="250" y="162" width="21" height="21"/>
+    <rect x="30" y="184" width="21" height="21"/><rect x="52" y="184" width="21" height="21"/><rect x="74" y="184" width="21" height="21"/><rect x="96" y="184" width="21" height="21"/><rect x="118" y="184" width="21" height="21"/><rect x="140" y="184" width="21" height="21"/><rect x="162" y="184" width="21" height="21"/><rect x="184" y="184" width="21" height="21"/><rect x="206" y="184" width="21" height="21"/><rect x="228" y="184" width="21" height="21"/><rect x="250" y="184" width="21" height="21"/>
+    <rect x="30" y="206" width="21" height="21"/><rect x="52" y="206" width="21" height="21"/><rect x="74" y="206" width="21" height="21"/><rect x="96" y="206" width="21" height="21"/><rect x="118" y="206" width="21" height="21"/><rect x="140" y="206" width="21" height="21"/><rect x="162" y="206" width="21" height="21"/><rect x="184" y="206" width="21" height="21"/><rect x="206" y="206" width="21" height="21"/><rect x="228" y="206" width="21" height="21"/><rect x="250" y="206" width="21" height="21"/>
+    <rect x="30" y="228" width="21" height="21"/><rect x="52" y="228" width="21" height="21"/><rect x="74" y="228" width="21" height="21"/><rect x="96" y="228" width="21" height="21"/><rect x="118" y="228" width="21" height="21"/><rect x="140" y="228" width="21" height="21"/><rect x="162" y="228" width="21" height="21"/><rect x="184" y="228" width="21" height="21"/><rect x="206" y="228" width="21" height="21"/><rect x="228" y="228" width="21" height="21"/><rect x="250" y="228" width="21" height="21"/>
+    <rect x="30" y="250" width="21" height="21"/><rect x="52" y="250" width="21" height="21"/><rect x="74" y="250" width="21" height="21"/><rect x="96" y="250" width="21" height="21"/><rect x="118" y="250" width="21" height="21"/><rect x="140" y="250" width="21" height="21"/><rect x="162" y="250" width="21" height="21"/><rect x="184" y="250" width="21" height="21"/><rect x="206" y="250" width="21" height="21"/><rect x="228" y="250" width="21" height="21"/><rect x="250" y="250" width="21" height="21"/>
+  </g>
+
+  <!-- ── dim ring pixels (off pyramid): 1,2,3,4,5,13,14,15,16 ── -->
+  <g fill="rgba(207,231,216,0.09)" stroke="rgba(207,231,216,0.06)" stroke-width="0.3">
+    <rect x="140" y="52"  width="21" height="21"/><!-- 1:(5,1)  -->
+    <rect x="162" y="52"  width="21" height="21"/><!-- 2:(6,1)  -->
+    <rect x="184" y="74"  width="21" height="21"/><!-- 3:(7,2)  -->
+    <rect x="206" y="96"  width="21" height="21"/><!-- 4:(8,3)  -->
+    <rect x="206" y="118" width="21" height="21"/><!-- 5:(8,4)  -->
+    <rect x="74"  y="118" width="21" height="21"/><!-- 13:(2,4) -->
+    <rect x="74"  y="96"  width="21" height="21"/><!-- 14:(2,3) -->
+    <rect x="96"  y="74"  width="21" height="21"/><!-- 15:(3,2) -->
+    <rect x="118" y="52"  width="21" height="21"/><!-- 16:(4,1) -->
+  </g>
+
+  <!-- ── red borders — all 16 ring pixels ── -->
+  <g fill="none" stroke="#e63030" stroke-width="2">
+    <rect x="140" y="52"  width="21" height="21"/><!-- 1  -->
+    <rect x="162" y="52"  width="21" height="21"/><!-- 2  -->
+    <rect x="184" y="74"  width="21" height="21"/><!-- 3  -->
+    <rect x="206" y="96"  width="21" height="21"/><!-- 4  -->
+    <rect x="206" y="118" width="21" height="21"/><!-- 5  -->
+    <rect x="206" y="140" width="21" height="21"/><!-- 6  bright -->
+    <rect x="184" y="162" width="21" height="21"/><!-- 7  bright -->
+    <rect x="162" y="184" width="21" height="21"/><!-- 8  bright -->
+    <rect x="140" y="184" width="21" height="21"/><!-- 9  bright -->
+    <rect x="118" y="184" width="21" height="21"/><!-- 10 bright -->
+    <rect x="96"  y="162" width="21" height="21"/><!-- 11 bright -->
+    <rect x="74"  y="140" width="21" height="21"/><!-- 12 bright -->
+    <rect x="74"  y="118" width="21" height="21"/><!-- 13 -->
+    <rect x="74"  y="96"  width="21" height="21"/><!-- 14 -->
+    <rect x="96"  y="74"  width="21" height="21"/><!-- 15 -->
+    <rect x="118" y="52"  width="21" height="21"/><!-- 16 -->
+  </g>
+
+  <!-- ── p: single tip pixel at (5,4) = x=140, y=118 ── -->
+  <rect x="140" y="118" width="21" height="21" fill="rgba(125,255,178,0.5)" stroke="#cfe7d8" stroke-width="1.5"/>
+  <text x="151" y="133" text-anchor="middle" font-style="italic" font-size="11" fill="#cfe7d8">p</text>
+
+  <!-- ── short straight arrow from grid right edge to strip left edge ── -->
+  <line x1="290" y1="120" x2="410" y2="120"
+        stroke="#22c55e" stroke-width="2"
+        marker-end="url(#arr)"/>
+
+  <!-- ════════════════════════════════════
+       STRIP — 16 cells
+       Bright: pixels 6–12 (i=5..11)
+       Dim: 1–5 (i=0..4) and 13–16 (i=12..15)
+  ════════════════════════════════════ -->
+  <rect x="429" y="108" width="352" height="24" fill="none" stroke="#e63030" stroke-width="2" rx="1"/>
+
+  <g fill="rgba(207,231,216,0.09)">
+    <rect x="430" y="109" width="21" height="22"/><!-- 1  dim -->
+    <rect x="452" y="109" width="21" height="22"/><!-- 2  dim -->
+    <rect x="474" y="109" width="21" height="22"/><!-- 3  dim -->
+    <rect x="496" y="109" width="21" height="22"/><!-- 4  dim -->
+    <rect x="518" y="109" width="21" height="22"/><!-- 5  dim -->
+  </g>
+  <g fill="rgba(125,255,178,0.5)">
+    <rect x="540" y="109" width="21" height="22"/><!-- 6  bright -->
+    <rect x="562" y="109" width="21" height="22"/><!-- 7  bright -->
+    <rect x="584" y="109" width="21" height="22"/><!-- 8  bright -->
+    <rect x="606" y="109" width="21" height="22"/><!-- 9  bright -->
+    <rect x="628" y="109" width="21" height="22"/><!-- 10 bright -->
+    <rect x="650" y="109" width="21" height="22"/><!-- 11 bright -->
+    <rect x="672" y="109" width="21" height="22"/><!-- 12 bright -->
+  </g>
+  <g fill="rgba(207,231,216,0.09)">
+    <rect x="694" y="109" width="21" height="22"/><!-- 13 dim -->
+    <rect x="716" y="109" width="21" height="22"/><!-- 14 dim -->
+    <rect x="738" y="109" width="21" height="22"/><!-- 15 dim -->
+    <rect x="760" y="109" width="21" height="22"/><!-- 16 dim -->
+  </g>
+
+  <g stroke="rgba(207,231,216,0.18)" stroke-width="0.7">
+    <line x1="452" y1="109" x2="452" y2="131"/><line x1="474" y1="109" x2="474" y2="131"/>
+    <line x1="496" y1="109" x2="496" y2="131"/><line x1="518" y1="109" x2="518" y2="131"/>
+    <line x1="540" y1="109" x2="540" y2="131"/><line x1="562" y1="109" x2="562" y2="131"/>
+    <line x1="584" y1="109" x2="584" y2="131"/><line x1="606" y1="109" x2="606" y2="131"/>
+    <line x1="628" y1="109" x2="628" y2="131"/><line x1="650" y1="109" x2="650" y2="131"/>
+    <line x1="672" y1="109" x2="672" y2="131"/><line x1="694" y1="109" x2="694" y2="131"/>
+    <line x1="716" y1="109" x2="716" y2="131"/><line x1="738" y1="109" x2="738" y2="131"/>
+    <line x1="760" y1="109" x2="760" y2="131"/>
+  </g>
+
+  <g text-anchor="middle" font-size="8" fill="rgba(207,231,216,0.40)">
+    <text x="441"  y="143">1</text><text x="463"  y="143">2</text>
+    <text x="485"  y="143">3</text><text x="507"  y="143">4</text>
+    <text x="529"  y="143">5</text><text x="551"  y="143">6</text>
+    <text x="573"  y="143">7</text><text x="595"  y="143">8</text>
+    <text x="617"  y="143">9</text><text x="639"  y="143">10</text>
+    <text x="661"  y="143">11</text><text x="683"  y="143">12</text>
+    <text x="705"  y="143">13</text><text x="727"  y="143">14</text>
+    <text x="749"  y="143">15</text><text x="771"  y="143">16</text>
+  </g>
+
+  <text x="151" y="290" text-anchor="middle" font-size="14" fill="rgba(207,231,216,0.45)">FAST ring (r=3, 16 px) around p</text>
+  <text x="605" y="165" text-anchor="middle" font-size="14" fill="rgba(207,231,216,0.45)">ring unrolled clockwise</text>
+</svg>

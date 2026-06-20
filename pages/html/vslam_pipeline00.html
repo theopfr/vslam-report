@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #070b09;
+    color: #d7e6dc;
+    letter-spacing: 0.06em;
+  }
+
+  .tl {
+    display: flex;
+    padding: 1rem 1.5rem 2rem;
+    max-width: 700px;
+  }
+
+  .track-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 32px;
+    flex-shrink: 0;
+    position: relative;
+    margin-right: 1.5rem;
+  }
+
+  .track-bg {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: rgba(0, 255, 136, 0.15);
+  }
+
+  .track-fill {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: #00ff88;
+    height: 0;
+    pointer-events: none;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.5);
+  }
+
+  .handle {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #0b0f0e;
+    border: 1.5px solid #00ff88;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+    cursor: grab;
+    z-index: 10;
+    top: 0;
+    transition: box-shadow 0.1s;
+    user-select: none;
+  }
+  .handle:active {
+    cursor: grabbing;
+    box-shadow: 0 0 16px rgba(0, 255, 136, 0.9);
+  }
+
+  .steps-col { flex: 1; }
+
+  .step {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+
+    opacity: 1;
+    transition: none;
+  }
+  .step.visible { opacity: 1; }
+
+  .step-img {
+    width: 130px;
+    height: 98px;
+    flex-shrink: 0;
+    border-radius: 4px;
+
+    background: #0f1513;
+    border: 1px solid #2a3a33;
+
+    opacity: 1;
+    filter: none;
+  }
+  .step-img svg { width: 100%; height: 100%; display: block; }
+
+  .step-text { flex: 1; padding-top: 2px; }
+
+  .step-num {
+    font-size: 10px;
+    color: rgba(0, 255, 136, 0.4);
+    font-weight: 400;
+    margin-bottom: 4px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .step-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #eafff1;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    text-shadow: none;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: #cfded4;
+    line-height: 1.7;
+    letter-spacing: 0.04em;
+  }
+</style>
+</head>
+<body>
+<div class="tl">
+  <div class="track-col" id="track-col">
+    <div class="track-bg"></div>
+    <div class="track-fill" id="track-fill"></div>
+    <div class="handle" id="handle"></div>
+  </div>
+  <div class="steps-col" id="steps-col"></div>
+</div>
+
+<script>
+const svgs = [
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <rect x="0" y="0" width="130" height="48" fill="#0d1a14"/>
+  <rect x="0" y="48" width="130" height="50" fill="#0b130f"/>
+  <rect x="18" y="18" width="26" height="40" fill="#1a2e24"/>
+  <rect x="20" y="22" width="7" height="8" fill="#0f2a1a"/>
+  <rect x="31" y="22" width="7" height="8" fill="#0f2a1a"/>
+  <rect x="20" y="34" width="7" height="8" fill="#0f2a1a"/>
+  <rect x="50" y="26" width="20" height="32" fill="#152a1e"/>
+  <rect x="53" y="30" width="5" height="6" fill="#0f2a1a"/>
+  <rect x="61" y="30" width="5" height="6" fill="#0f2a1a"/>
+  <line x1="0" y1="70" x2="130" y2="70" stroke="#1f3a33" stroke-width="0.5"/>
+  <line x1="26" y1="60" x2="0" y2="98" stroke="#1f3a33" stroke-width="0.5"/>
+  <line x1="78" y1="60" x2="130" y2="98" stroke="#1f3a33" stroke-width="0.5"/>
+  <rect x="88" y="32" width="34" height="24" rx="3" fill="#0f1513" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.4"/>
+  <circle cx="102" cy="44" r="8" fill="#1a2e24"/>
+  <circle cx="102" cy="44" r="5" fill="#0f1a14"/>
+  <circle cx="102" cy="44" r="3" fill="#0b0f0e"/>
+  <circle cx="100" cy="42" r="0.9" fill="#00ff88" opacity="0.5"/>
+  <rect x="116" y="36" width="5" height="4" rx="1" fill="#1f3a33"/>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <rect x="0" y="0" width="130" height="48" fill="#0d1a14"/>
+  <rect x="0" y="48" width="130" height="50" fill="#0b130f"/>
+  <rect x="18" y="18" width="26" height="40" fill="#1a2e24"/>
+  <rect x="50" y="26" width="20" height="32" fill="#152a1e"/>
+  <line x1="0" y1="70" x2="130" y2="70" stroke="#1f3a33" stroke-width="0.5"/>
+  <circle cx="18" cy="18" r="6" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.8"/>
+  <line x1="18" y1="18" x2="23" y2="13" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="44" cy="18" r="5" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.8"/>
+  <line x1="44" y1="18" x2="49" y2="14" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="70" cy="26" r="6" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.8"/>
+  <line x1="70" y1="26" x2="76" y2="21" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="50" cy="48" r="5" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.8"/>
+  <line x1="50" y1="48" x2="54" y2="44" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="98" cy="40" r="5" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.8"/>
+  <line x1="98" y1="40" x2="103" y2="36" stroke="#00ff88" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="28" cy="62" r="4" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+  <circle cx="115" cy="55" r="4" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.6"/>
+  <line x1="115" y1="55" x2="120" y2="51" stroke="#00ff88" stroke-width="1.2" opacity="0.6"/>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <rect x="3" y="10" width="50" height="38" rx="3" fill="#0d1a14" stroke="#1f3a33" stroke-width="0.8"/>
+  <rect x="8" y="15" width="12" height="20" rx="1" fill="#1a2e24"/>
+  <rect x="26" y="18" width="16" height="17" rx="1" fill="#152a1e"/>
+  <rect x="77" y="10" width="50" height="38" rx="3" fill="#0d1a14" stroke="#1f3a33" stroke-width="0.8"/>
+  <rect x="82" y="15" width="12" height="20" rx="1" fill="#1a2e24"/>
+  <rect x="100" y="18" width="16" height="17" rx="1" fill="#152a1e"/>
+  <circle cx="14" cy="17" r="3" fill="#00ff88" opacity="0.8"/>
+  <circle cx="88" cy="15" r="3" fill="#00ff88" opacity="0.8"/>
+  <line x1="17" y1="17" x2="85" y2="15" stroke="#00ff88" stroke-width="1" stroke-dasharray="3 2" opacity="0.7"/>
+  <circle cx="28" cy="33" r="3" fill="#7dffb2" opacity="0.7"/>
+  <circle cx="104" cy="30" r="3" fill="#7dffb2" opacity="0.7"/>
+  <line x1="31" y1="33" x2="101" y2="30" stroke="#7dffb2" stroke-width="1" stroke-dasharray="3 2" opacity="0.6"/>
+  <circle cx="40" cy="22" r="3" fill="#cfe7d8" opacity="0.5"/>
+  <circle cx="114" cy="20" r="3" fill="#cfe7d8" opacity="0.5"/>
+  <line x1="43" y1="22" x2="111" y2="20" stroke="#cfe7d8" stroke-width="1" stroke-dasharray="3 2" opacity="0.4"/>
+  <circle cx="16" cy="40" r="3" fill="#ff6b6b" opacity="0.6"/>
+  <circle cx="96" cy="44" r="3" fill="#ff6b6b" opacity="0.6"/>
+  <line x1="19" y1="40" x2="93" y2="44" stroke="#ff6b6b" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.4"/>
+  <line x1="93" y1="41" x2="99" y2="47" stroke="#ff6b6b" stroke-width="1.4"/>
+  <line x1="99" y1="41" x2="93" y2="47" stroke="#ff6b6b" stroke-width="1.4"/>
+  <text x="28" y="62" text-anchor="middle" font-size="7" fill="#1f3a33" font-family="monospace">frame t</text>
+  <text x="102" y="62" text-anchor="middle" font-size="7" fill="#1f3a33" font-family="monospace">frame t+1</text>
+  <text x="65" y="85" text-anchor="middle" font-size="7" fill="#1f3a33" font-family="monospace">RANSAC removes outliers</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <line x1="16" y1="82" x2="70" y2="82" stroke="#1f3a33" stroke-width="0.8"/>
+  <line x1="16" y1="82" x2="16" y2="34" stroke="#1f3a33" stroke-width="0.8"/>
+  <text x="73" y="85" font-size="8" fill="#1f3a33" font-family="monospace">X</text>
+  <text x="10" y="31" font-size="8" fill="#1f3a33" font-family="monospace">Y</text>
+  <polygon points="26,72 38,59 50,72" fill="none" stroke="#7dffb2" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="29" y="54" width="16" height="10" rx="2" fill="#0f1513" stroke="#7dffb2" stroke-width="1"/>
+  <text x="38" y="86" text-anchor="middle" font-size="8" fill="#7dffb2" font-family="monospace">C₁</text>
+  <polygon points="74,54 88,38 102,52" fill="none" stroke="#00ff88" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="78" y="32" width="16" height="10" rx="2" fill="#0f1513" stroke="#00ff88" stroke-width="1"/>
+  <text x="88" y="70" text-anchor="middle" font-size="8" fill="#00ff88" font-family="monospace">C₂</text>
+  <path d="M49,65 Q62,52 74,54" fill="none" stroke="#cfe7d8" stroke-width="1.2" stroke-dasharray="3 2" opacity="0.5"/>
+  <polygon points="72,51 78,57 70,58" fill="#cfe7d8" opacity="0.5"/>
+  <text x="60" y="47" font-size="10" fill="#cfe7d8" font-family="monospace" font-style="italic" opacity="0.7">R, t</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <circle cx="65" cy="22" r="6" fill="#00ff88" opacity="0.9"/>
+  <text x="74" y="26" font-size="9" fill="#00ff88" font-family="monospace" font-weight="600">P</text>
+  <line x1="24" y1="80" x2="61" y2="27" stroke="#7dffb2" stroke-width="1.4" stroke-dasharray="4 2" opacity="0.7"/>
+  <line x1="106" y1="76" x2="69" y2="27" stroke="#cfe7d8" stroke-width="1.4" stroke-dasharray="4 2" opacity="0.7"/>
+  <circle cx="24" cy="80" r="7" fill="#0f1513" stroke="#7dffb2" stroke-width="1.5"/>
+  <circle cx="24" cy="80" r="2.5" fill="#7dffb2"/>
+  <text x="24" y="94" text-anchor="middle" font-size="8" fill="#7dffb2" font-family="monospace">C₁</text>
+  <circle cx="106" cy="76" r="7" fill="#0f1513" stroke="#cfe7d8" stroke-width="1.5"/>
+  <circle cx="106" cy="76" r="2.5" fill="#cfe7d8"/>
+  <text x="106" y="90" text-anchor="middle" font-size="8" fill="#cfe7d8" font-family="monospace">C₂</text>
+  <line x1="31" y1="84" x2="99" y2="80" stroke="#1f3a33" stroke-width="0.8"/>
+  <text x="65" y="95" text-anchor="middle" font-size="7" fill="#1f3a33" font-family="monospace">baseline</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#0c1210"/>
+  <circle cx="40" cy="24" r="2.2" fill="#00ff88" opacity="0.85"/>
+  <circle cx="62" cy="16" r="1.8" fill="#00ff88" opacity="0.7"/>
+  <circle cx="84" cy="30" r="2.5" fill="#00ff88" opacity="0.9"/>
+  <circle cx="52" cy="42" r="1.8" fill="#00ff88" opacity="0.65"/>
+  <circle cx="100" cy="22" r="2" fill="#00ff88" opacity="0.75"/>
+  <circle cx="70" cy="52" r="1.8" fill="#7dffb2" opacity="0.6"/>
+  <circle cx="30" cy="58" r="2.2" fill="#7dffb2" opacity="0.7"/>
+  <circle cx="112" cy="46" r="1.8" fill="#00ff88" opacity="0.65"/>
+  <circle cx="88" cy="62" r="2.5" fill="#00ff88" opacity="0.8"/>
+  <circle cx="44" cy="72" r="1.8" fill="#7dffb2" opacity="0.55"/>
+  <circle cx="74" cy="74" r="2" fill="#7dffb2" opacity="0.7"/>
+  <circle cx="106" cy="68" r="1.8" fill="#00ff88" opacity="0.6"/>
+  <circle cx="20" cy="40" r="1.6" fill="#00ff88" opacity="0.5"/>
+  <circle cx="120" cy="36" r="1.6" fill="#7dffb2" opacity="0.55"/>
+  <path d="M14,88 Q34,72 54,60 Q72,50 90,38 Q108,26 122,16" fill="none" stroke="#00ff88" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.6"/>
+  <circle cx="14" cy="88" r="4" fill="#0f1513" stroke="#00ff88" stroke-width="1.5"/>
+  <circle cx="68" cy="50" r="4" fill="#0f1513" stroke="#00ff88" stroke-width="1.5"/>
+  <circle cx="122" cy="16" r="4" fill="#0f1513" stroke="#00ff88" stroke-width="1.5"/>
+  <text x="65" y="95" text-anchor="middle" font-size="7" fill="#1f3a33" font-family="monospace">map + trajectory</text>
+</svg>`
+];
+
+const steps = [
+  { label: "Images",           title: "Image capture",            desc: "The camera captures a continuous stream of frames. Each frame is a 2D grid of pixel intensities - the raw input to the entire vSLAM pipeline." },
+  { label: "ORB features",     title: "ORB feature extraction",   desc: "Distinctive keypoints (corners, blobs) are detected and each is encoded as a compact binary descriptor. ORB is fast enough to run in real time on embedded hardware." },
+  { label: "Feature matching", title: "Feature matching",         desc: "Descriptors from consecutive frames are compared by Hamming distance. Matched pairs identify the same real-world point seen from two positions. RANSAC removes outliers." },
+  { label: "Camera motion",    title: "Camera motion estimation", desc: "From the matched pairs, the essential matrix is solved to recover the relative rotation R and translation t between frames - the camera's movement in space." },
+  { label: "Triangulation",    title: "Triangulation",            desc: "Each matched pair defines two optical rays. Where they intersect gives the 3D position of that landmark. Depth is recovered without any active sensor." },
+  { label: "Point cloud",      title: "Sparse point cloud map",   desc: "All triangulated landmarks accumulate into a sparse 3D map. The sequence of estimated poses forms the camera trajectory. Loop closure corrects drift when a place is revisited." },
+];
+
+const n = steps.length;
+const stepsCol = document.getElementById('steps-col');
+const trackCol = document.getElementById('track-col');
+const trackFill = document.getElementById('track-fill');
+const handle = document.getElementById('handle');
+
+stepsCol.innerHTML = steps.map((s, i) => `
+  <div class="step" id="step-${i}">
+    <div class="step-img">${svgs[i]}</div>
+    <div class="step-text">
+      <div class="step-num">Step ${i + 1} / ${n} - ${s.label}</div>
+      <div class="step-title">${s.title}</div>
+      <div class="step-desc">${s.desc}</div>
+    </div>
+  </div>
+`).join('');
+
+function getStepCenters() {
+  const trackRect = trackCol.getBoundingClientRect();
+  return Array.from({ length: n }, (_, i) => {
+    const el = document.getElementById('step-' + i);
+    const r = el.getBoundingClientRect();
+    return r.top - trackRect.top + r.height / 2;
+  });
+}
+
+function reveal(count) {
+  count = Math.max(0, Math.min(n, count));
+  const centers = getStepCenters();
+  const trackH = trackCol.getBoundingClientRect().height;
+
+  let handleY;
+  if (count === 0) {
+    handleY = centers[0] - (centers[1] - centers[0]) * 0.5;
+  } else if (count >= n) {
+    handleY = centers[n - 1] + (centers[n - 1] - centers[n - 2]) * 0.3;
+  } else {
+    handleY = (centers[count - 1] + centers[count]) / 2;
+  }
+
+  handleY = Math.max(10, Math.min(trackH - 10, handleY));
+  handle.style.top = handleY + 'px';
+  trackFill.style.height = handleY + 'px';
+
+  for (let i = 0; i < n; i++) {
+    document.getElementById('step-' + i).classList.toggle('visible', i < count);
+  }
+}
+
+function yFromEvent(e) {
+  const r = trackCol.getBoundingClientRect();
+  const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return Math.max(0, Math.min(r.height, y));
+}
+
+function snapCount(y) {
+  const centers = getStepCenters();
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const threshold = i === 0 ? centers[0] * 0.6 : (centers[i - 1] + centers[i]) / 2;
+    if (y >= threshold) count = i + 1;
+  }
+  return count;
+}
+
+let dragging = false;
+handle.addEventListener('mousedown', e => { dragging = true; e.preventDefault(); });
+handle.addEventListener('touchstart', () => dragging = true, { passive: true });
+document.addEventListener('mousemove', e => { if (dragging) reveal(snapCount(yFromEvent(e))); });
+document.addEventListener('touchmove', e => { if (dragging) reveal(snapCount(yFromEvent(e))); }, { passive: true });
+document.addEventListener('mouseup', () => dragging = false);
+document.addEventListener('touchend', () => dragging = false);
+trackCol.addEventListener('click', e => reveal(snapCount(yFromEvent(e))));
+
+setTimeout(() => reveal(1), 50);
+</script>
+</body>
+</html>

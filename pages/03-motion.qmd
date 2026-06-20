@@ -1,0 +1,58 @@
+Now that we have matched features, we can work out how the **camera moved** between two frames. First, one requirement.
+
+#### The camera has to be calibrated
+
+To recover *real* motion we need a **calibrated** camera - one whose internal optics we've measured in advance. Calibration comes down to two things, gathered into the intrinsic matrix **K**:
+
+- the **focal length** $f$ - how strongly the lens magnifies, i.e. how a pixel offset relates to an angle in the scene;
+- the **principal point** $(c_x, c_y)$ - where the optical axis actually pierces the image (usually near the centre).
+
+$$
+K = \begin{bmatrix} f & 0 & c_x \\ 0 & f & c_y \\ 0 & 0 & 1 \end{bmatrix}
+$$
+
+With **K** known, a pixel can be turned back into a real-world direction - and that's what lets us recover true motion instead of a distorted version of it.
+
+#### What we're looking for
+
+Between frame **A** ($F_{t-1}$) and frame **B** ($F_t$) the camera has moved, and that motion is just two things:
+
+- a **rotation R** - how the camera turned;
+- a **translation t** - which way it shifted.
+
+The scene below shows exactly that: the same camera at two positions, A and B. Drag to orbit, and move B with the sliders - the white arrow is **t** and the white arc is **R**, the two quantities we're after. The **×** on each image plane marks where the *same* feature point lands in each view - that's a matched pair from the previous step.
+
+```{=html}
+<iframe src="pages/html/epipolar_3d.html" width="100%" height="840" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```
+
+#### Packing R and t into the essential matrix E
+
+R and t are usually bundled into one 3×3 matrix, the **essential matrix E**:
+
+$$
+E = [\,t\,]_\times \, R
+$$
+
+where **R** is the rotation and $[\,t\,]_\times$ is the translation $t$ written as a matrix:
+
+$$
+[\,t\,]_\times =
+\begin{bmatrix} 0 & -t_z & t_y \\ t_z & 0 & -t_x \\ -t_y & t_x & 0 \end{bmatrix}
+$$
+
+So E is just a compact way of writing *where B sits relative to A*. We never measure R and t directly - all we have are the **×'s**, the pixel where each camera sees the same feature. A match gives a point $x$ in frame A and its partner $x'$ in frame B, and every correct match obeys one simple relation:
+
+$$
+x'^{\top}\, E \, x = 0
+$$
+
+Each match gives one such equation, so with about **eight matches** there are enough to solve for E. Once E is known, it **splits back into R and t** - the motion we were after, which we chain across frames to track the camera and hand to triangulation for the 3D map.
+
+One catch: from a single camera the *length* of $t$ can't be recovered, only its direction - so the trajectory and map come out correct in shape but at an arbitrary overall **scale**.
+
+```{=html}
+<!-- Interactive epipolar-estimation explorer (hidden for now; source kept at pages/html/epipolar.html)
+<iframe src="pages/html/epipolar.html" width="100%" height="720px" frameborder="0" scrolling="no"></iframe>
+-->
+```

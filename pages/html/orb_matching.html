@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  background: transparent;
+  color: #cfe7d8;
+  letter-spacing: 0.04em;
+}
+
+.wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* ===== STAGE ===== */
+/* aspect-ratio matches the two-panel canvas buffer (2*320+12) x 240 so the
+   absolutely-positioned canvas fills it without any stretching. */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 652 / 240;
+  border: 1px solid rgb(0, 255, 136);
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(125, 255, 178, 0.04) 0px,
+      rgba(125, 255, 178, 0.04) 10px,
+      transparent 10px,
+      transparent 20px
+    ),
+    #0b0f0e;
+  box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
+}
+
+video { display: none; }
+
+canvas#out {
+  display: none;          /* shown once the camera starts (avoids the default 300x150 box) */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+canvas#out.show { display: block; }
+
+/* panel captions */
+.tags {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  display: none;
+}
+.tags.show { display: block; }
+
+.tag {
+  position: absolute;
+  top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #7dffb2;
+  background: rgba(11, 15, 14, 0.65);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  border-radius: 5px;
+  padding: 3px 8px;
+}
+.tag.left  { left: 8px; }
+.tag.right { right: 8px; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  z-index: 2;
+}
+.overlay.hidden { display: none; }
+.overlay p {
+  font-size: 11px;
+  color: rgba(207, 231, 216, 0.6);
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+/* ===== BUTTON ===== */
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #0b0f0e;
+  background: #7dffb2;
+  border: none;
+  border-radius: 6px;
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: box-shadow 0.2s ease, transform 0.08s ease, background 0.2s ease;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+}
+.btn:hover:not(:disabled) { box-shadow: 0 0 18px rgba(0, 255, 136, 0.55); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled {
+  background: rgba(125, 255, 178, 0.25);
+  color: rgba(11, 15, 14, 0.6);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.status { font-size: 12px; color: rgba(207, 231, 216, 0.55); }
+.status.err { color: #ff8a8a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="out"></canvas>
+
+    <div class="tags" id="tags">
+      <span class="tag left">now</span>
+      <span class="tag right">~0.8s ago</span>
+    </div>
+    <div class="overlay" id="overlay">
+      <p>Match ORB features between the live frame and one from a moment ago. Nothing leaves your browser.</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="startBtn" disabled>Loading OpenCV…</button>
+    <span class="status" id="status"></span>
+  </div>
+</div>
+
+<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+<script>
+const video    = document.getElementById('video');
+const canvas   = document.getElementById('out');
+const ctx      = canvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const overlay  = document.getElementById('overlay');
+const tags     = document.getElementById('tags');
+const statusEl = document.getElementById('status');
+
+const PROC_W      = 320;   // width of ONE panel
+const GAP         = 12;    // gap between the two panels
+const SNAP_MS     = 800;   // how old the right-hand frame is
+const MAX_MATCHES = 60;    // best N matches to draw
+const MAX_DIST    = 64;    // max Hamming distance for a "good" match
+
+let cvReady = false, running = false, stream = null, raf;
+let PROC_H, RIGHT_X;
+
+// capture buffers
+let cap, capCtx, prevCanvas, prevCtx;
+// OpenCV objects
+let orb, bf, src, gray, emptyMask, prevDes;
+let prevKp = [], prevReady = false, lastSnap = 0;
+
+function setStatus(msg, isErr = false) {
+  statusEl.textContent = msg || '';
+  statusEl.classList.toggle('err', !!isErr);
+}
+
+function waitForCv() {
+  if (window.cv && cv.Mat) onCvReady();
+  else if (window.cv) cv['onRuntimeInitialized'] = onCvReady;
+  else setTimeout(waitForCv, 100);
+}
+function onCvReady() {
+  cvReady = true;
+  startBtn.disabled = false;
+  startBtn.textContent = 'Start camera';
+}
+waitForCv();
+
+startBtn.addEventListener('click', () => running ? stop() : start());
+
+async function start() {
+  if (!cvReady) return;
+  setStatus('Requesting camera…');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user' }, audio: false
+    });
+  } catch (err) {
+    setStatus('Camera access denied or unavailable.', true);
+    return;
+  }
+
+  video.srcObject = stream;
+  await video.play();
+
+  // fixed 4:3 panels (matches the stage aspect-ratio) - the feed is
+  // cover-cropped into them, never stretched.
+  PROC_H  = Math.round(PROC_W * 3 / 4);
+  RIGHT_X = PROC_W + GAP;
+
+  canvas.width  = PROC_W * 2 + GAP;
+  canvas.height = PROC_H;
+
+  // offscreen capture canvases
+  cap = document.createElement('canvas');
+  cap.width = PROC_W; cap.height = PROC_H;
+  capCtx = cap.getContext('2d');
+
+  prevCanvas = document.createElement('canvas');
+  prevCanvas.width = PROC_W; prevCanvas.height = PROC_H;
+  prevCtx = prevCanvas.getContext('2d');
+
+  // OpenCV objects
+  orb       = new cv.ORB(500);
+  bf        = new cv.BFMatcher(cv.NORM_HAMMING, true); // crossCheck = mutual best
+  src       = new cv.Mat(PROC_H, PROC_W, cv.CV_8UC4);
+  gray      = new cv.Mat();
+  emptyMask = new cv.Mat();
+  prevDes   = null;
+  prevKp    = [];
+  prevReady = false;
+  lastSnap  = 0;
+
+  running = true;
+  canvas.classList.add('show');
+  overlay.classList.add('hidden');
+  tags.classList.add('show');
+  startBtn.textContent = 'Stop camera';
+  setStatus('');
+  loop();
+}
+
+function loop() {
+  if (!running) return;
+
+  // grab the current frame, mirrored selfie-style, cover-cropped into 4:3
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const s = Math.max(PROC_W / vw, PROC_H / vh);
+  const dw = vw * s, dh = vh * s;
+  const dx = (PROC_W - dw) / 2, dy = (PROC_H - dh) / 2;
+  capCtx.save();
+  capCtx.translate(PROC_W, 0);
+  capCtx.scale(-1, 1);
+  capCtx.drawImage(video, dx, dy, dw, dh);
+  capCtx.restore();
+
+  const kp = new cv.KeyPointVector();
+  const des = new cv.Mat();
+  const matches = new cv.DMatchVector();
+
+  try {
+    src.data.set(capCtx.getImageData(0, 0, PROC_W, PROC_H).data);
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    orb.detectAndCompute(gray, emptyMask, kp, des);
+
+    // paint both panels
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(cap, 0, 0);
+    if (prevReady) ctx.drawImage(prevCanvas, RIGHT_X, 0);
+
+    // faint keypoints on each panel
+    ctx.fillStyle = 'rgba(125, 255, 178, 0.35)';
+    for (let i = 0; i < kp.size(); i++) {
+      const p = kp.get(i).pt;
+      dot(p.x, p.y);
+    }
+    for (let i = 0; i < prevKp.length; i++) {
+      dot(prevKp[i].x + RIGHT_X, prevKp[i].y);
+    }
+
+    // match current -> previous and draw correspondences
+    let count = 0;
+    if (prevReady && prevDes && !des.empty() && !prevDes.empty()) {
+      bf.match(des, prevDes, matches);
+      const arr = [];
+      for (let i = 0; i < matches.size(); i++) arr.push(matches.get(i));
+      arr.sort((a, b) => a.distance - b.distance);
+
+      const lim = Math.min(arr.length, MAX_MATCHES);
+      for (let i = 0; i < lim; i++) {
+        const m = arr[i];
+        if (m.distance > MAX_DIST) continue;
+        const q = kp.get(m.queryIdx).pt;
+        const t = prevKp[m.trainIdx];
+        if (!t) continue;
+
+        ctx.strokeStyle = 'rgba(125, 255, 178, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(q.x, q.y);
+        ctx.lineTo(t.x + RIGHT_X, t.y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#7dffb2';
+        dot(q.x, q.y, 2.2);
+        dot(t.x + RIGHT_X, t.y, 2.2);
+        count++;
+      }
+    }
+
+    // every SNAP_MS, the current frame becomes the "previous" reference
+    const now = performance.now();
+    if (now - lastSnap > SNAP_MS) {
+      lastSnap = now;
+      prevCtx.drawImage(cap, 0, 0);
+      if (prevDes) prevDes.delete();
+      prevDes = des.clone();
+      prevKp = [];
+      for (let i = 0; i < kp.size(); i++) {
+        const p = kp.get(i).pt;
+        prevKp.push({ x: p.x, y: p.y });
+      }
+      prevReady = true;
+    }
+  } catch (e) {
+    // transient frame error - keep going
+  }
+
+  kp.delete(); des.delete(); matches.delete();
+  raf = requestAnimationFrame(loop);
+}
+
+function dot(x, y, r = 1.6) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, 2 * Math.PI);
+  ctx.fill();
+}
+
+function stop() {
+  running = false;
+  if (raf) cancelAnimationFrame(raf);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+
+  [orb, bf, src, gray, emptyMask, prevDes].forEach(o => { try { o && o.delete(); } catch (_) {} });
+  orb = bf = src = gray = emptyMask = prevDes = null;
+  prevKp = []; prevReady = false;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.classList.remove('show');
+  overlay.classList.remove('hidden');
+  tags.classList.remove('show');
+  startBtn.textContent = 'Start camera';
+}
+
+window.addEventListener('pagehide', stop);
+</script>
+</body>
+</html>

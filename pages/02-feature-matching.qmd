@@ -1,0 +1,15 @@
+Once features are extracted, they have to be **matched** across frames - finding the same real-world point seen from two different camera positions. Below, the left panel is your live camera and the right panel is a frame from a moment ago; lines link the keypoints ORB matched between them. Move the camera slowly to see the correspondences shift.
+
+```{=html}
+<iframe src="pages/html/orb_matching.html" width="100%" height="370" frameborder="0" scrolling="no" allow="camera" style="display:block;border:0;"></iframe>
+```
+
+#### How it works
+
+Each keypoint carries the 256-bit descriptor from the previous step. Matching asks: for a descriptor in frame $F_t$, **which descriptor in the earlier frame $F_{t-1}$ is most similar?** Similarity is the **Hamming distance** - the number of differing bits (a fast XOR + bit-count) - and each descriptor is paired with its nearest neighbour. A few cheap filters (a distance threshold, a cross-check) throw out the unreliable pairs, leaving a set of *probable* correspondences. The next step, **Camera Motion Estimation**, makes the final call on which ones are geometrically consistent.
+
+To see what a descriptor actually responds to, the two images below each hold a corner plus a fixed circle in the top-left. **Drag the corner** to move it (*inside* the dashed circle), or *outside* to rotate. The dashed circle is the **descriptor patch** - the only region that's compared. Because the descriptor is centred on the corner and rotation-invariant, it keeps matching as you move and rotate it - until you drag it near the circle: once that intrudes on the patch, the bits flip and the **match breaks**.
+
+```{=html}
+<iframe src="pages/html/descriptor_compare.html" width="100%" height="400" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```

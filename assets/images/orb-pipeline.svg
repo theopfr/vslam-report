@@ -1,0 +1,96 @@
+<svg viewBox="0 80 940 220" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+    .ttl{fill:#7dffb2;font-size:13px;font-weight:600;letter-spacing:0.08em;}
+    .cap{fill:#cfe7d8;font-size:12px;font-weight:600;letter-spacing:0.04em;}
+    .sub{fill:rgba(207,231,216,0.6);font-size:11px;}
+    .ring{fill:rgba(207,231,216,0.18);}
+    .arc{fill:#7dffb2;}
+    .pix{fill:#cfe7d8;}
+    .faint{fill:none;stroke:rgba(0,255,136,0.3);stroke-width:1;}
+    .flow{fill:none;stroke:rgba(125,255,178,0.5);stroke-width:1.5;}
+    .amber{stroke:#f5b14a;fill:#f5b14a;}
+    .blue{stroke:#60a5fa;fill:#60a5fa;}
+    .mono{fill:#7dffb2;font-size:10px;letter-spacing:0.1em;}
+  </style>
+
+  <!-- ===== 1. FAST corner test ===== -->
+  <circle cx="120" cy="150" r="46" class="faint"/>
+  <!-- 16-pixel ring; a contiguous arc (right side) is "brighter" -->
+  <circle cx="120" cy="104" r="4" class="arc"/>
+  <circle cx="137.6" cy="107.5" r="4" class="arc"/>
+  <circle cx="152.5" cy="117.5" r="4" class="arc"/>
+  <circle cx="162.5" cy="132.4" r="4" class="arc"/>
+  <circle cx="166" cy="150" r="4" class="arc"/>
+  <circle cx="162.5" cy="167.6" r="4" class="arc"/>
+  <circle cx="152.5" cy="182.5" r="4" class="arc"/>
+  <circle cx="137.6" cy="192.5" r="4" class="arc"/>
+  <circle cx="120" cy="196" r="4" class="arc"/>
+  <circle cx="102.4" cy="192.5" r="4" class="ring"/>
+  <circle cx="87.5" cy="182.5" r="4" class="ring"/>
+  <circle cx="77.5" cy="167.6" r="4" class="ring"/>
+  <circle cx="74" cy="150" r="4" class="ring"/>
+  <circle cx="77.5" cy="132.4" r="4" class="ring"/>
+  <circle cx="87.5" cy="117.5" r="4" class="ring"/>
+  <circle cx="102.4" cy="107.5" r="4" class="ring"/>
+  <rect x="115" y="145" width="10" height="10" class="pix"/>
+  <text x="120" size="9" y="135" text-anchor="middle" class="sub">p</text>
+  <text x="120" y="252" size="12" text-anchor="middle" class="cap">1 · FAST</text>
+  <text x="120" y="270" size="12" text-anchor="middle" class="sub">≥ 9 contiguous ring</text>
+  <text x="120" y="282" size="12" text-anchor="middle" class="sub">pixels brighter/darker</text>
+
+  <path d="M178 150 L300 150" class="flow" marker-end="url(#a)"/>
+
+  <!-- ===== 2. Orientation ===== -->
+  <circle cx="360" cy="150" r="46" class="faint"/>
+  <rect x="355" y="145" width="10" height="10" class="pix"/>
+  <line x1="360" y1="150" x2="397" y2="124" class="amber" stroke-width="2"/>
+  <circle cx="397" cy="124" r="3.5" class="amber"/>
+  <path d="M360 132 A 22 22 0 0 1 378 139" fill="none" stroke="#f5b14a" stroke-width="1"/>
+  <text x="372" y="128" size="9" class="sub" fill="#f5b14a">θ</text>
+  <text x="360" y="252" size="12" text-anchor="middle" class="cap">2 · Orientation</text>
+  <text x="360" y="270" size="11" text-anchor="middle" class="sub">intensity-centroid</text>
+  <text x="360" y="282" size="11" text-anchor="middle" class="sub">angle θ → rotation</text>
+
+  <path d="M418 150 L540 150" class="flow" marker-end="url(#a)"/>
+
+  <!-- ===== 3. rBRIEF descriptor ===== -->
+  <rect x="554" y="104" width="92" height="92" rx="4" class="faint"/>
+  <line x1="566" y1="120" x2="630" y2="170" class="blue" stroke-width="1.2"/>
+  <line x1="580" y1="182" x2="620" y2="128" class="blue" stroke-width="1.2"/>
+  <line x1="600" y1="112" x2="572" y2="162" class="blue" stroke-width="1.2"/>
+  <line x1="636" y1="150" x2="588" y2="140" class="blue" stroke-width="1.2"/>
+  <line x1="612" y1="188" x2="562" y2="176" class="blue" stroke-width="1.2"/>
+  <g fill="#60a5fa">
+    <circle cx="566" cy="120" r="2.6"/><circle cx="630" cy="170" r="2.6"/>
+    <circle cx="580" cy="182" r="2.6"/><circle cx="620" cy="128" r="2.6"/>
+    <circle cx="600" cy="112" r="2.6"/><circle cx="572" cy="162" r="2.6"/>
+    <circle cx="636" cy="150" r="2.6"/><circle cx="588" cy="140" r="2.6"/>
+    <circle cx="612" cy="188" r="2.6"/><circle cx="562" cy="176" r="2.6"/>
+  </g>
+  <text x="600" y="218" text-anchor="middle" class="mono">1 0 1 1 0 1 0 0 …</text>
+  <text x="600" y="252" size="1w" text-anchor="middle" class="cap">3 · rBRIEF</text>
+  <text x="600" y="270" size="11" text-anchor="middle" class="sub">pairwise intensity tests</text>
+  <text x="600" y="282" size="11" text-anchor="middle" class="sub">→ 256-bit descriptor</text>
+
+  <path d="M662 150 L780 150" class="flow" marker-end="url(#a)"/>
+
+  <!-- ===== 4. Scale pyramid ===== -->
+  <rect x="792" y="172" width="96" height="28" rx="2" class="faint"/>
+  <rect x="803" y="146" width="74" height="22" rx="2" class="faint"/>
+  <rect x="812" y="124" width="56" height="17" rx="2" class="faint"/>
+  <rect x="819" y="106" width="42" height="13" rx="2" class="faint"/>
+  <circle cx="812" cy="186" r="2.6" class="arc"/>
+  <circle cx="826" cy="157" r="2.4" class="arc"/>
+  <circle cx="834" cy="132" r="2.2" class="arc"/>
+  <circle cx="839" cy="112" r="2" class="arc"/>
+  <text x="840" y="252" size="12" text-anchor="middle" class="cap">4 · Scale pyramid</text>
+  <text x="840" y="270" size="11" text-anchor="middle" class="sub">detect at each level</text>
+  <text x="840" y="282" size="11" text-anchor="middle" class="sub">→ scale invariance</text>
+
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0 0 L6 3 L0 6 Z" fill="rgba(125,255,178,0.7)"/>
+    </marker>
+  </defs>
+</svg>

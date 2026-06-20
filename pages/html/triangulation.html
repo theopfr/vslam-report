@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: transparent; color: #cfe7d8; letter-spacing: 0.04em; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 1rem; }
+canvas#stage {
+  display: block; width: 100%; height: auto;
+  border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 8px;
+  background: #0b0f0e; cursor: grab; box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
+}
+canvas#stage:active { cursor: grabbing; }
+.hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
+.params { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.param label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.3rem; }
+.param label .val { color: #7dffb2; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: rgba(207,231,216,0.25); border-radius: 2px; outline: none; cursor: pointer; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="stage" width="720" height="540"></canvas>
+  <div class="hint">drag to orbit · two rays back-projected from the matched pixels (×) meet at the 3D point</div>
+
+  <div class="params">
+    <div class="param">
+      <label for="b">Baseline  (distance A↔B) <span class="val" id="b-val">1.40</span></label>
+      <input type="range" id="b" min="0.3" max="2.6" step="0.05" value="1.4">
+    </div>
+    <div class="param">
+      <label for="depth">Point depth <span class="val" id="depth-val">5.0</span></label>
+      <input type="range" id="depth" min="3" max="7" step="0.1" value="5">
+    </div>
+    <div class="param">
+      <label for="err">Match error  (noise in B's pixel) <span class="val" id="err-val">0.00</span></label>
+      <input type="range" id="err" min="-0.13" max="0.13" step="0.005" value="0">
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+
+// ---- vector helpers ----
+const add = (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const scl = (a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const vdot= (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const norm= v=>{ const m=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/m,v[1]/m,v[2]/m]; };
+const mv  = (M,v)=>[M[0]*v[0]+M[1]*v[1]+M[2]*v[2], M[3]*v[0]+M[4]*v[1]+M[5]*v[2], M[6]*v[0]+M[7]*v[1]+M[8]*v[2]];
+const I3  = [1,0,0,0,1,0,0,0,1];
+
+// ---- orbit view (orthographic) ----
+let az = 0.7, el = 0.30;
+const TARGET = [0.6, 0, 3.4], SCALE = 84, CX = 360, CY = 250;
+function project(p) {
+  const x = p[0]-TARGET[0], y = p[1]-TARGET[1], z = p[2]-TARGET[2];
+  const x1 =  x*Math.cos(az) + z*Math.sin(az);
+  const z1 = -x*Math.sin(az) + z*Math.cos(az);
+  const y2 =  y*Math.cos(el) - z1*Math.sin(el);
+  return { x: CX + x1*SCALE, y: CY - y2*SCALE };
+}
+function line3(p, q, style, width, dash) {
+  const a = project(p), b = project(q);
+  ctx.strokeStyle = style; ctx.lineWidth = width || 1; ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+}
+function dot3(p, r, color, glow) {
+  const a = project(p); ctx.fillStyle = color;
+  if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 10; }
+  ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+}
+function ring3(p, r, color) { const a = project(p); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 7); ctx.stroke(); }
+function cross3(p, s, color) {
+  const a = project(p);
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(a.x - s, a.y - s); ctx.lineTo(a.x + s, a.y + s);
+  ctx.moveTo(a.x + s, a.y - s); ctx.lineTo(a.x - s, a.y + s);
+  ctx.stroke();
+}
+function label3(p, txt, color, dx, dy) { const a = project(p); ctx.fillStyle = color; ctx.font = '11px IBM Plex Mono, monospace'; ctx.fillText(txt, a.x + (dx||6), a.y + (dy||-6)); }
+
+// draw a camera as a small frustum (apex + image-plane rectangle)
+const F = 0.7, HS = 0.5;
+function camera(apex, Rw, color, fillCol, name) {
+  const d = mv(Rw, [0,0,1]), r = mv(Rw, [1,0,0]), u = mv(Rw, [0,1,0]);
+  const c = add(apex, scl(d, F));
+  const cc = [
+    add(add(c, scl(r,  HS)), scl(u,  HS)),
+    add(add(c, scl(r, -HS)), scl(u,  HS)),
+    add(add(c, scl(r, -HS)), scl(u, -HS)),
+    add(add(c, scl(r,  HS)), scl(u, -HS)),
+  ];
+  const q = cc.map(project);
+  ctx.fillStyle = fillCol;
+  ctx.beginPath(); ctx.moveTo(q[0].x,q[0].y); for (let i=1;i<4;i++) ctx.lineTo(q[i].x,q[i].y); ctx.closePath(); ctx.fill();
+  for (let i=0;i<4;i++) line3(cc[i], cc[(i+1)%4], color, 1.5);
+  cc.forEach(p=>line3(apex,p,'rgba(207,231,216,0.28)',1));
+  dot3(apex, 5, color);
+  label3(apex, name, color, 6, -8);
+  return { apex, d, r, u };
+}
+
+// pixel = where the ray apex→P crosses the image plane (distance F along d)
+function imagePoint(apex, d, P) {
+  const s = F / vdot(sub(P, apex), d);
+  return add(apex, scl(sub(P, apex), s));
+}
+// closest point between two lines (p1+s·d1) and (p2+t·d2), dirs normalized
+function closest(p1, d1, p2, d2) {
+  const r = sub(p1, p2);
+  const a = vdot(d1,d1), b = vdot(d1,d2), c = vdot(d2,d2), dd = vdot(d1,r), e = vdot(d2,r);
+  const den = a*c - b*b; let s = 0, t = 0;
+  if (Math.abs(den) > 1e-6) { s = (b*e - c*dd)/den; t = (a*e - b*dd)/den; }
+  const c1 = add(p1, scl(d1, s)), c2 = add(p2, scl(d2, t));
+  return { c1, c2, mid: scl(add(c1, c2), 0.5) };
+}
+
+function render() {
+  const b = +document.getElementById('b').value;
+  const depth = +document.getElementById('depth').value;
+  const err = +document.getElementById('err').value;
+
+  const A = [0,0,0], B = [b, 0, 0];
+  const P = [0.45, 0.18, depth];
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // cameras (both looking forward, +Z)
+  const camA = camera(A, I3, '#7dffb2', 'rgba(125,255,178,0.16)', 'A');
+  const camB = camera(B, I3, '#f5b14a', 'rgba(245,177,74,0.16)', 'B');
+
+  // baseline
+  line3(A, B, 'rgba(207,231,216,0.45)', 1.5);
+
+  // matched pixels: A is exact; B is nudged by the match error (along its image x-axis)
+  const xA = imagePoint(A, camA.d, P);
+  const xBtrue = imagePoint(B, camB.d, P);
+  const xB = add(xBtrue, scl(camB.r, err));
+
+  // back-projected rays, extended past the point
+  const dA = norm(sub(xA, A)), dB = norm(sub(xB, B));
+  const L = depth * 1.4;
+  line3(A, add(A, scl(dA, L)), 'rgba(125,255,178,0.8)', 1.6);
+  line3(B, add(B, scl(dB, L)), 'rgba(245,177,74,0.8)', 1.6);
+
+  // triangulated estimate = midpoint of the shortest segment between the rays
+  const { c1, c2, mid } = closest(A, dA, B, dB);
+
+  // residual gap (only visible when the match is noisy)
+  if (Math.hypot(...sub(c1, c2)) > 1e-3) line3(c1, c2, '#ff6b6b', 2.5);
+
+  // the × marks on the image planes
+  cross3(xA, 6, '#eafff3');
+  cross3(xB, 6, '#ffe9c9');
+
+  // true 3D point + the estimate
+  dot3(P, 5.5, '#8fd3ff', true); label3(P, '3D point', '#8fd3ff', 9, -6);
+  ring3(mid, 7, '#ffffff');
+  const errDist = Math.hypot(...sub(mid, P));
+  if (errDist > 0.03) label3(mid, 'estimate', '#ffffff', 9, 16);
+
+  // readout
+  ctx.fillStyle = 'rgba(207,231,216,0.6)'; ctx.font = '11px IBM Plex Mono, monospace';
+  ctx.fillText(`triangulation error: ${errDist.toFixed(3)} units`, 14, 24);
+
+  // legend
+  ctx.fillStyle = 'rgba(207,231,216,0.5)'; ctx.font = '10px IBM Plex Mono, monospace';
+  ctx.fillText('× = matched pixel · green/amber = back-projected rays · ○ = estimate · red = residual gap', 14, canvas.height - 12);
+}
+
+// orbit interaction
+let drag = false, lastX = 0, lastY = 0;
+function pt(e){ return { x: e.touches?e.touches[0].clientX:e.clientX, y: e.touches?e.touches[0].clientY:e.clientY }; }
+canvas.addEventListener('mousedown', e => { drag = true; const p = pt(e); lastX = p.x; lastY = p.y; });
+canvas.addEventListener('mousemove', e => {
+  if (!drag) return; const p = pt(e);
+  az += (p.x - lastX) * 0.01; el = Math.max(-1.2, Math.min(1.2, el + (p.y - lastY) * 0.01));
+  lastX = p.x; lastY = p.y; render();
+});
+window.addEventListener('mouseup', () => drag = false);
+canvas.addEventListener('touchstart', e => { drag = true; const p = pt(e); lastX = p.x; lastY = p.y; e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchmove', e => { if (!drag) return; const p = pt(e); az += (p.x-lastX)*0.01; el = Math.max(-1.2,Math.min(1.2, el+(p.y-lastY)*0.01)); lastX=p.x; lastY=p.y; e.preventDefault(); render(); }, { passive: false });
+window.addEventListener('touchend', () => drag = false);
+
+['b','depth','err'].forEach(id => {
+  const el = document.getElementById(id), v = document.getElementById(id+'-val');
+  el.addEventListener('input', () => { v.textContent = id==='depth' ? (+el.value).toFixed(1) : (+el.value).toFixed(2); render(); });
+});
+
+render();
+</script>
+</body>
+</html>

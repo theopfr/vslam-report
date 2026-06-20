@@ -1,0 +1,45 @@
+We now know where the camera was for each frame (its **R** and **t**) and which pixels in the two views are the *same* feature (the matched **×'s**). That's everything we need to place the feature in 3D - by **triangulation**.
+
+The idea is simple. A pixel doesn't give a 3D point, only a **ray**: back-project it from the camera centre through the pixel and the true point lies somewhere along that ray, at unknown depth. But the *same* feature seen from the second camera gives a *second* ray - and two rays from different viewpoints **cross at a single point in space**. That intersection is the feature's 3D position.
+
+In the scene below, each camera back-projects its matched pixel into a ray (green from A, amber from B); where they meet is the **3D point**. Drag to orbit.
+
+```{=html}
+<iframe src="pages/html/triangulation.html" width="100%" height="760" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```
+
+Two things the demo makes clear:
+
+1. **Baseline matters.** With the cameras far apart the rays cross at a wide, well-defined angle. Shrink the baseline and they become nearly parallel, so the intersection gets shallow and the depth poorly constrained - the reason distant points are always the most uncertain.
+2. **Real matches are noisy.** A pixel match is never exact, so the two rays almost never meet perfectly - they pass *near* each other instead. Add some **match error** and watch the rays skew apart: triangulation then takes the **midpoint of the shortest gap** between them (a small least-squares problem), shown as the white estimate next to the true point.
+
+#### What we need to compute the point
+
+By now every ingredient is already in hand:
+
+- $K$ - the $3\times3$ **intrinsic matrix** (from calibration);
+- $R_1, t_1$ and $R_2, t_2$ - the **pose** of each camera (from motion estimation);
+- $x_1 = (u_1, v_1)$ and $x_2 = (u_2, v_2)$ - the **matched pixel** in each image (from feature matching).
+
+From the poses and intrinsics, form each camera's $3\times4$ **projection matrix**:
+
+$$
+P_1 = K\,[\,R_1 \mid t_1\,], \qquad P_2 = K\,[\,R_2 \mid t_2\,]
+$$
+
+Each view ties the unknown 3D point $X$ to its pixel by $x \simeq P\,X$. Writing $P^{(i)}$ for the $i$-th row of a projection matrix, the two views stack into a single $4\times4$ system:
+
+$$
+A =
+\begin{bmatrix}
+u_1\,P_1^{(3)} - P_1^{(1)} \\[2pt]
+v_1\,P_1^{(3)} - P_1^{(2)} \\[2pt]
+u_2\,P_2^{(3)} - P_2^{(1)} \\[2pt]
+v_2\,P_2^{(3)} - P_2^{(2)}
+\end{bmatrix},
+\qquad A\,X = 0
+$$
+
+Solving $A\,X = 0$ with an **SVD** - taking the smallest singular vector - gives the 3D point $X$. This is the **Direct Linear Transform (DLT)**, and the SVD's least-squares nature is exactly the demo's behaviour: when the rays don't quite meet, $X$ lands at the best compromise between them.
+
+Doing this for every matched feature turns the set of 2D correspondences into a set of 3D points - the beginnings of the **map**, which the final step assembles into a point cloud.

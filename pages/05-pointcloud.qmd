@@ -1,0 +1,7 @@
+Triangulation gives 3D points from *one* pair of frames. A real sequence has hundreds of frames, and SLAM simply keeps doing this: for every new frame it estimates the camera's pose, triangulates the features it shares with earlier frames, and drops the new 3D points into one shared **world coordinate frame**. The accumulated result is the **map** - together with the chain of poses, which is the camera's **trajectory**.
+
+Play the sequence below to watch it form: the camera moves along its path (green trail), and each step adds freshly triangulated points (green) to the growing cloud (blue). Drag to orbit the finished map.
+
+```{=html}
+<iframe src="pages/html/pointcloud.html" width="100%" height="700" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+```
