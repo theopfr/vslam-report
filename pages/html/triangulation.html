@@ -15,6 +15,8 @@ canvas#stage {
 canvas#stage:active { cursor: grabbing; }
 .hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
 .params { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 0.8rem; }
+.param-row { display: flex; gap: 1.2rem; }
+.param-row .param { flex: 1; }
 .param label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.3rem; }
 .param label .val { color: #7dffb2; }
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: rgba(207,231,216,0.25); border-radius: 2px; outline: none; cursor: pointer; }
@@ -29,16 +31,22 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 
   <div class="params">
     <div class="param">
-      <label for="b">Baseline  (distance A↔B) <span class="val" id="b-val">1.40</span></label>
+      <label for="b">Baseline  (distance A↔️B) <span class="val" id="b-val">1.40</span></label>
       <input type="range" id="b" min="0.3" max="2.6" step="0.05" value="1.4">
     </div>
     <div class="param">
       <label for="depth">Point depth <span class="val" id="depth-val">5.0</span></label>
       <input type="range" id="depth" min="3" max="7" step="0.1" value="5">
     </div>
-    <div class="param">
-      <label for="err">Match error  (noise in B's pixel) <span class="val" id="err-val">0.00</span></label>
-      <input type="range" id="err" min="-0.13" max="0.13" step="0.005" value="0">
+    <div class="param-row">
+      <div class="param">
+        <label for="errA">Match error - A <span class="val" id="errA-val">0.00</span></label>
+        <input type="range" id="errA" min="-0.13" max="0.13" step="0.005" value="0">
+      </div>
+      <div class="param">
+        <label for="errB">Match error - B <span class="val" id="errB-val">0.00</span></label>
+        <input type="range" id="errB" min="-0.13" max="0.13" step="0.005" value="0">
+      </div>
     </div>
   </div>
 </div>
@@ -126,7 +134,8 @@ function closest(p1, d1, p2, d2) {
 function render() {
   const b = +document.getElementById('b').value;
   const depth = +document.getElementById('depth').value;
-  const err = +document.getElementById('err').value;
+  const errA = +document.getElementById('errA').value;
+  const errB = +document.getElementById('errB').value;
 
   const A = [0,0,0], B = [b, 0, 0];
   const P = [0.45, 0.18, depth];
@@ -140,10 +149,11 @@ function render() {
   // baseline
   line3(A, B, 'rgba(207,231,216,0.45)', 1.5);
 
-  // matched pixels: A is exact; B is nudged by the match error (along its image x-axis)
-  const xA = imagePoint(A, camA.d, P);
-  const xBtrue = imagePoint(B, camB.d, P);
-  const xB = add(xBtrue, scl(camB.r, err));
+  // matched pixels: each can be nudged by its own match error (along its image x-axis)
+  // match error nudges each ray vertically - up for A, down for B - so when the
+  // rays miss, the gap is out-of-plane and stays obvious as you orbit
+  const xA = add(imagePoint(A, camA.d, P), scl(camA.u,  errA));
+  const xB = add(imagePoint(B, camB.d, P), scl(camB.u, -errB));
 
   // back-projected rays, extended past the point
   const dA = norm(sub(xA, A)), dB = norm(sub(xB, B));
@@ -190,7 +200,7 @@ canvas.addEventListener('touchstart', e => { drag = true; const p = pt(e); lastX
 canvas.addEventListener('touchmove', e => { if (!drag) return; const p = pt(e); az += (p.x-lastX)*0.01; el = Math.max(-1.2,Math.min(1.2, el+(p.y-lastY)*0.01)); lastX=p.x; lastY=p.y; e.preventDefault(); render(); }, { passive: false });
 window.addEventListener('touchend', () => drag = false);
 
-['b','depth','err'].forEach(id => {
+['b','depth','errA','errB'].forEach(id => {
   const el = document.getElementById(id), v = document.getElementById(id+'-val');
   el.addEventListener('input', () => { v.textContent = id==='depth' ? (+el.value).toFixed(1) : (+el.value).toFixed(2); render(); });
 });

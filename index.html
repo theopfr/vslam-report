@@ -244,40 +244,27 @@ x'^{\top}\, E \, x = 0
 </section>
 <section id="triangulation" class="level3">
 <h3 class="anchored" data-anchor-id="triangulation">4. Triangulation</h3>
-<p>We now know where the camera was for each frame (its <strong>R</strong> and <strong>t</strong>) and which pixels in the two views are the <em>same</em> feature (the matched <strong>×’s</strong>). That’s everything we need to place the feature in 3D - by <strong>triangulation</strong>.</p>
-<p>The idea is simple. A pixel doesn’t give a 3D point, only a <strong>ray</strong>: back-project it from the camera centre through the pixel and the true point lies somewhere along that ray, at unknown depth. But the <em>same</em> feature seen from the second camera gives a <em>second</em> ray - and two rays from different viewpoints <strong>cross at a single point in space</strong>. That intersection is the feature’s 3D position.</p>
-<p>In the scene below, each camera back-projects its matched pixel into a ray (green from A, amber from B); where they meet is the <strong>3D point</strong>. Drag to orbit.</p>
-<iframe src="pages/html/triangulation.html" width="100%" height="760" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
-<p>Two things the demo makes clear:</p>
-<ol type="1">
-<li><strong>Baseline matters.</strong> With the cameras far apart the rays cross at a wide, well-defined angle. Shrink the baseline and they become nearly parallel, so the intersection gets shallow and the depth poorly constrained - the reason distant points are always the most uncertain.</li>
-<li><strong>Real matches are noisy.</strong> A pixel match is never exact, so the two rays almost never meet perfectly - they pass <em>near</em> each other instead. Add some <strong>match error</strong> and watch the rays skew apart: triangulation then takes the <strong>midpoint of the shortest gap</strong> between them (a small least-squares problem), shown as the white estimate next to the true point.</li>
-</ol>
-<section id="what-we-need-to-compute-the-point" class="level4">
-<h4 class="anchored" data-anchor-id="what-we-need-to-compute-the-point">What we need to compute the point</h4>
-<p>By now every ingredient is already in hand:</p>
+<p>We now know where the camera was for each frame (its <span class="math inline">\(R\)</span> and <span class="math inline">\(t\)</span>) and which pixels in the two views are the <em>same</em> feature (the matched <strong>×’s</strong>). That’s everything we need to place the feature in 3D - by <strong>triangulation</strong>.</p>
+<p>A single pixel fixes only a <strong>ray</strong>: back-projected from the camera centre, the true point lies somewhere along it at unknown depth. The <em>same</em> feature in the second view gives a second ray, and the two rays intersect at one point in space - the feature’s <strong>3D position</strong>.</p>
+<p>In the scene below, each camera back-projects its matched pixel into a ray (green from A, amber from B); where they meet is the <strong>3D point</strong>. Drag to orbit and use the sliders to change the setup (<strong>match error</strong> is how far a feature’s measured pixel sits from its true spot since real matches are never exact, e.g.&nbsp;due to noise).</p>
+<div class="demo-frame">
+<iframe src="pages/html/triangulation.html" width="100%" height="760" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
+</div>
+<p>In practice the two rays almost never meet exactly. A pixel match is never perfect, so instead of crossing they pass <em>near</em> each other - add some <strong>match error</strong> and watch them skew apart. Triangulation then takes the <strong>midpoint of the shortest gap</strong> between them (a small least-squares problem), shown as the white estimate next to the true point.</p>
+<section id="computing-the-feature-points-3d-coordinates" class="level4">
+<h4 class="anchored" data-anchor-id="computing-the-feature-points-3d-coordinates">Computing the feature point’s 3D coordinates</h4>
+<p>Through all previous steps we now have everything needed to compute a point’s location:</p>
 <ul>
-<li><span class="math inline">\(K\)</span> - the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration);</li>
-<li><span class="math inline">\(R_1, t_1\)</span> and <span class="math inline">\(R_2, t_2\)</span> - the <strong>pose</strong> of each camera (from motion estimation);</li>
-<li><span class="math inline">\(x_1 = (u_1, v_1)\)</span> and <span class="math inline">\(x_2 = (u_2, v_2)\)</span> - the <strong>matched pixel</strong> in each image (from feature matching).</li>
+<li><span class="math inline">\(K\)</span>: the <span class="math inline">\(3\times3\)</span> <strong>intrinsic matrix</strong> (from calibration)</li>
+<li><span class="math inline">\(R_1, t_1\)</span> and <span class="math inline">\(R_2, t_2\)</span>: the <strong>pose</strong> of each camera (from motion estimation)</li>
+<li><span class="math inline">\(x_1 = (u_1, v_1)\)</span> and <span class="math inline">\(x_2 = (u_2, v_2)\)</span>: the <strong>matched pixel</strong> in each image (from feature matching)</li>
 </ul>
-<p>From the poses and intrinsics, form each camera’s <span class="math inline">\(3\times4\)</span> <strong>projection matrix</strong>:</p>
+<p>From the poses and intrinsics we build each camera’s <strong>projection matrix</strong> <span class="math inline">\(P = K\,[\,R \mid t\,]\)</span>, which is just the rule that maps a 3D point to its pixel:<a href="#fn4" class="footnote-ref" id="fnref4" role="doc-noteref"><sup>4</sup></a></p>
 <p><span class="math display">\[
-P_1 = K\,[\,R_1 \mid t_1\,], \qquad P_2 = K\,[\,R_2 \mid t_2\,]
+x \simeq P\,X
 \]</span></p>
-<p>Each view ties the unknown 3D point <span class="math inline">\(X\)</span> to its pixel by <span class="math inline">\(x \simeq P\,X\)</span>. Writing <span class="math inline">\(P^{(i)}\)</span> for the <span class="math inline">\(i\)</span>-th row of a projection matrix, the two views stack into a single <span class="math inline">\(4\times4\)</span> system:</p>
-<p><span class="math display">\[
-A =
-\begin{bmatrix}
-u_1\,P_1^{(3)} - P_1^{(1)} \\[2pt]
-v_1\,P_1^{(3)} - P_1^{(2)} \\[2pt]
-u_2\,P_2^{(3)} - P_2^{(1)} \\[2pt]
-v_2\,P_2^{(3)} - P_2^{(2)}
-\end{bmatrix},
-\qquad A\,X = 0
-\]</span></p>
-<p>Solving <span class="math inline">\(A\,X = 0\)</span> with an <strong>SVD</strong> - taking the smallest singular vector - gives the 3D point <span class="math inline">\(X\)</span>. This is the <strong>Direct Linear Transform (DLT)</strong>, and the SVD’s least-squares nature is exactly the demo’s behaviour: when the rays don’t quite meet, <span class="math inline">\(X\)</span> lands at the best compromise between them.</p>
-<p>Doing this for every matched feature turns the set of 2D correspondences into a set of 3D points - the beginnings of the <strong>map</strong>, which the final step assembles into a point cloud.</p>
+<p>We know <span class="math inline">\(x\)</span> and <span class="math inline">\(P\)</span> for <em>both</em> cameras and want the shared unknown <span class="math inline">\(X\)</span>. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit <span class="math inline">\(X\)</span> is the <strong>Direct Linear Transform (DLT)</strong>, done with a <strong>Singular Value Decomposition (SVD)</strong>. Even though the two rays mostly never meet because of noise, <strong>SVD</strong> ensures that <span class="math inline">\(X\)</span> lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.</p>
 <hr>
 </section>
 </section>
@@ -301,6 +288,7 @@ v_2\,P_2^{(3)} - P_2^{(2)}
 <li id="fn1"><p>An <em>uncalibrated</em> camera (no <span class="math inline">\(K\)</span>) still works, but the motion can only be recovered up to an unknown distortion - real angles, shape, and scale are lost.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn2"><p>Here <span class="math inline">\(x\)</span> and <span class="math inline">\(x'\)</span> are <em>normalized</em> image coordinates - the pixel with the calibration divided out (<span class="math inline">\(K^{-1}\cdot\text{pixel}\)</span>) - not raw pixels. Dividing <span class="math inline">\(K\)</span> out is exactly what “calibrated” buys us.<a href="#fnref2" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn3"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em>.<a href="#fnref3" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn4"><p>The <span class="math inline">\(\simeq\)</span> means <em>equal up to scale</em>: <span class="math inline">\(P\,X\)</span> gives the pixel’s direction in homogeneous coordinates, but its overall scale (the depth) is unknown.<a href="#fnref4" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
