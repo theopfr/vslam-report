@@ -1,0 +1,33 @@
+Everything so far is **visual odometry**: the camera tracked frame by frame. And because every pose is estimated relative to the previous one, each frame's small error piles onto all the earlier ones. Over a long path this **drift** bends the trajectory away from the truth - and when the camera revisits a place it saw early on, the points it re-triangulates land *beside* their originals instead of on them.
+
+**Loop closure** fixes this in two steps:
+
+1. **Recognise the place** - match the current frame's appearance against past keyframes. A hit means "I've been here before."
+2. **Correct the loop** - that match says the current pose is really the old one, so the accumulated error gets pushed back across every pose in between.
+
+#### Back-calculating the poses
+
+Say the loop has poses $p_0, p_1, \dots, p_N$, and at $p_N$ we recognise we're observing the same place as back at $p_0$. That lets us **recompute** $p_N$ directly from $p_0$ and the matched features - call it $\hat{p}_N$. This fresh estimate is a single step from $p_0$, so it carries no accumulated drift, yet it disagrees with the $p_N$ we chained our way around to. That mismatch is the **closing error**:
+
+$$
+e = p_N - \hat{p}_N
+$$
+
+We cancel it by spreading it over the loop, a little more at each pose the further along it is:
+
+$$
+p_i' = p_i - \frac{i}{N}\,e
+$$
+
+The start ($i=0$) stays fixed, the end ($i=N$) lands exactly on its drift-free estimate $\hat{p}_N$ so the loop shuts, and everything between shifts proportionally.^[Here $p_i$ is just a position. Real poses also have rotation, which doesn't subtract element-wise, so $-$ and $+$ really become the manifold operators $\boxminus$ / $\boxplus$.] Each map point moves with its pose, so the duplicates merge back together.
+
+Drag the **drift** slider to send the estimate off course, then hit **Close the loop** to watch the correction propagate.
+
+```{=html}
+<div class="demo-frame">
+<iframe src="pages/html/loop_closure.html" width="100%" height="580" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
+</div>
+```
+
+This is what makes it true **SLAM**: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM, and its successor ORB-SLAM3, are built on exactly this pipeline.
