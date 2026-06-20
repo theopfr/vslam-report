@@ -13,7 +13,7 @@ Below, the left panel is your live camera and the right is a frame from a moment
 
 Every keypoint carries its 256-bit descriptor (as described in the previous section). To match one from frame $F_t$, we look for the **most similar** descriptor in the previous frame $F_{t-1}$.
 
-For binary strings, "similar" means a small **Hamming distance** - the number of bits that differ:
+For binary strings, "similar" means a small **Hamming distance** [@hamming1950] - the number of bits that differ:
 
 $$
 d_H(a, b) = \sum_{i=1}^{256} a_i \oplus b_i
@@ -27,7 +27,7 @@ The nearest neighbour can still be wrong, so weak matches are filtered out by do
 
 The two images below each hold a corner and a fixed circle. **Drag the corner** to move it, or drag *outside* the dashed circle to rotate it.
 
-That dashed circle is the **descriptor patch** - the only region compared.^[The patch is a $31\times31$ *square*, but only the inscribed **circle** is effectively used - rotating the sampling pattern keeps the same pixels only for a circular region, which is why the demo draws a circle.] Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the **match breaks**.
+That dashed circle is the **descriptor patch** - the only region compared.^[The patch is a $31\times31$ *square*, but only the inscribed **circle** is effectively used - rotating the sampling pattern keeps the same pixels only for a circular region, which is why the demo draws a circle.] Since the descriptor is centred on the corner and rotation-invariant, the match holds as you move and rotate it - until you drag it near the circle. Once that intrudes on the patch, the bits flip and the **match breaks** *(note: might not work on Safari)*.
 
 ```{=html}
 <div class="demo-frame">

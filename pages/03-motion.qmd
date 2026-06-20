@@ -4,8 +4,8 @@ Now that we have matched features, we can work out how the **camera moved** betw
 
 To recover *real* motion we need a **calibrated** camera - one whose internal optics we've measured in advance. Calibration comes down to two things, gathered into the intrinsic matrix $K$:
 
-* the **focal length** $f$ - how strongly the lens magnifies, i.e. how a pixel offset relates to an angle in the scene;
-* the **principal point** $(c_x, c_y)$ - where the optical axis actually pierces the image (usually near the centre).
+- the **focal length** $f$ - how strongly the lens magnifies, i.e. how a pixel offset relates to an angle in the scene;
+- the **principal point** $(c_x, c_y)$ - where the optical axis actually pierces the image (usually near the centre).
 
 $$
 K = \begin{bmatrix} f & 0 & c_x \\ 0 & f & c_y \\ 0 & 0 & 1 \end{bmatrix}
@@ -21,8 +21,8 @@ With $K$ known, a pixel can be turned back into a real-world direction^[An *unca
 
 Between frame **A** ($F_{t-1}$) and frame **B** ($F_t$) the camera has moved and that motion is just two things:
 
-* a **rotation** $R$: how the camera turned
-* a **translation** $t$: which way it shifted
+- a **rotation** $R$: how the camera turned
+- a **translation** $t$: which way it shifted
 
 The scene below shows exactly that: the same camera at two positions, A and B. Drag to orbit, and move B with the sliders - the white arrow is $t$ and the white arc is $R$ (visible when you add rotation), the two quantities we're after. The **×** on each image plane marks where the *same* feature point lands in each view - that's a matched pair from the previous step.
 
@@ -54,7 +54,7 @@ $$
 x'^{\top}\, E \, x = 0
 $$
 
-Each match gives one such equation. And although $E$ has nine entries, only their *ratios* matter - its overall scale is unrecoverable (the same reason we can't recover the *length* of $t$) - so there are really just **eight** unknowns to pin down. That's why **eight matches** are enough to solve for $E$ .^[If you are curious about how $E$ is solved and why you actually only need *five matches* you can check out Hartley & Zisserman, *Multiple View Geometry in Computer Vision*.]
+Each match gives one such equation. And although $E$ has nine entries, only their *ratios* matter - its overall scale is unrecoverable (the same reason we can't recover the *length* of $t$) - so there are really just **eight** unknowns to pin down. That's why **eight matches** are enough to solve for $E$ [@longuethiggins1981].^[If you are curious about how $E$ is solved and why you actually only need *five matches* [@nister2004] you can check out Hartley & Zisserman, *Multiple View Geometry in Computer Vision* [@hartley2004].]
 
 Once $E$ is known, it **splits back** into $R$ and $t$ - the motion we were after.
 

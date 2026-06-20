@@ -17,7 +17,7 @@ In practice the two rays almost never meet exactly. A pixel match is never perfe
 
 Through all previous steps we now have everything needed to compute a point's location:
 
-- $K$: the $3\times3$ **intrinsic matrix** (from calibration)
+- $K$: the $3\times3$ **intrinsic matrix** (from calibration
 - $R_1, t_1$ and $R_2, t_2$: the **pose** of each camera (from motion estimation)
 - $x_1 = (u_1, v_1)$ and $x_2 = (u_2, v_2)$: the **matched pixel** in each image (from feature matching)
 
@@ -27,4 +27,4 @@ $$
 x \simeq P\,X
 $$
 
-We know $x$ and $P$ for *both* cameras and want the shared unknown $X$. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit $X$ is the **Direct Linear Transform (DLT)**, done with a **Singular Value Decomposition (SVD)**. Even though the two rays mostly never meet because of noise, **SVD** ensures that $X$ lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.
+We know $x$ and $P$ for *both* cameras and want the shared unknown $X$. Together the two views give enough equations to solve for it: collecting them into one system and solving for the best-fit $X$ is the **Direct Linear Transform (DLT)**, done with a **Singular Value Decomposition (SVD)** [@hartley2004]. Even though the two rays mostly never meet because of noise, **SVD** ensures that $X$ lands at the best compromise between them. Doing this for every matched feature turns the 2D correspondences into a cloud of 3D points.
