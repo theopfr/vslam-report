@@ -301,8 +301,36 @@ x \simeq P\,X
 <div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
 </div>
 <hr>
+<hr>
+</section>
+<section id="bonus---loop-closure" class="level3">
+<h3 class="anchored" data-anchor-id="bonus---loop-closure">BONUS - Loop Closure</h3>
+<p>Everything so far is <strong>visual odometry</strong>: the camera tracked frame by frame. And because every pose is estimated relative to the previous one, each frame’s small error piles onto all the earlier ones. Over a long path this <strong>drift</strong> bends the trajectory away from the truth - and when the camera revisits a place it saw early on, the points it re-triangulates land <em>beside</em> their originals instead of on them.</p>
+<p><strong>Loop closure</strong> fixes this in two steps:</p>
+<ol type="1">
+<li><strong>Recognise the place</strong> - match the current frame’s appearance against past keyframes. A hit means “I’ve been here before.”</li>
+<li><strong>Correct the loop</strong> - that match says the current pose is really the old one, so the accumulated error gets pushed back across every pose in between.</li>
+</ol>
+<section id="back-calculating-the-poses" class="level4">
+<h4 class="anchored" data-anchor-id="back-calculating-the-poses">Back-calculating the poses</h4>
+<p>Say the loop has poses <span class="math inline">\(p_0, p_1, \dots, p_N\)</span>, and at <span class="math inline">\(p_N\)</span> we recognise we’re observing the same place as back at <span class="math inline">\(p_0\)</span>. That lets us <strong>recompute</strong> <span class="math inline">\(p_N\)</span> directly from <span class="math inline">\(p_0\)</span> and the matched features - call it <span class="math inline">\(\hat{p}_N\)</span>. This fresh estimate is a single step from <span class="math inline">\(p_0\)</span>, so it carries no accumulated drift, yet it disagrees with the <span class="math inline">\(p_N\)</span> we chained our way around to. That mismatch is the <strong>closing error</strong>:</p>
+<p><span class="math display">\[
+e = p_N - \hat{p}_N
+\]</span></p>
+<p>We cancel it by spreading it over the loop, a little more at each pose the further along it is:</p>
+<p><span class="math display">\[
+p_i' = p_i - \frac{i}{N}\,e
+\]</span></p>
+<p>The start (<span class="math inline">\(i=0\)</span>) stays fixed, the end (<span class="math inline">\(i=N\)</span>) lands exactly on its drift-free estimate <span class="math inline">\(\hat{p}_N\)</span> so the loop shuts, and everything between shifts proportionally.<a href="#fn8" class="footnote-ref" id="fnref8" role="doc-noteref"><sup>8</sup></a> Each map point moves with its pose, so the duplicates merge back together.</p>
+<p>Drag the <strong>drift</strong> slider to send the estimate off course, then hit <strong>Close the loop</strong> to watch the correction propagate.</p>
+<div class="demo-frame">
+<iframe src="pages/html/loop_closure.html" width="100%" height="580" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
+</div>
+<p>This is what makes it true <strong>SLAM</strong>: revisiting a known place lets the system correct everything in between, keeping the map globally consistent however long the camera roams. Modern systems such as ORB-SLAM, and its successor ORB-SLAM3, are built on exactly this pipeline.</p>
 
 
+</section>
 </section>
 </section>
 
@@ -317,6 +345,7 @@ x \simeq P\,X
 <li id="fn5"><p>Here <span class="math inline">\(x\)</span> and <span class="math inline">\(x'\)</span> are <em>normalized</em> image coordinates - the pixel with the calibration divided out (<span class="math inline">\(K^{-1}\cdot\text{pixel}\)</span>) - not raw pixels. Dividing <span class="math inline">\(K\)</span> out is exactly what “calibrated” buys us.<a href="#fnref5" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn6"><p>If you are curious about how <span class="math inline">\(E\)</span> is solved and why you actually only need <em>five matches</em> you can check out Hartley &amp; Zisserman, <em>Multiple View Geometry in Computer Vision</em>.<a href="#fnref6" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 <li id="fn7"><p>The <span class="math inline">\(\simeq\)</span> means <em>equal up to scale</em>: <span class="math inline">\(P\,X\)</span> gives the pixel’s direction in homogeneous coordinates, but its overall scale (the depth) is unknown.<a href="#fnref7" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+<li id="fn8"><p>Here <span class="math inline">\(p_i\)</span> is just a position. Real poses also have rotation, which doesn’t subtract element-wise, so <span class="math inline">\(-\)</span> and <span class="math inline">\(+\)</span> really become the manifold operators <span class="math inline">\(\boxminus\)</span> / <span class="math inline">\(\boxplus\)</span>.<a href="#fnref8" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
 </ol>
 </section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
