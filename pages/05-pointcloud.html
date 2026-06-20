@@ -41,7 +41,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-80b7fd8540c6217b07273acd223c174e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-bba5ebae505b5c03f3f0d8040a416a6b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -90,7 +90,10 @@ ul.task-list li input[type="checkbox"] {
 
 <p>Triangulation gives 3D points from <em>one</em> pair of frames. A real sequence has hundreds of frames, and SLAM simply keeps doing this: for every new frame it estimates the camera’s pose, triangulates the features it shares with earlier frames, and drops the new 3D points into one shared <strong>world coordinate frame</strong>. The accumulated result is the <strong>map</strong> - together with the chain of poses, which is the camera’s <strong>trajectory</strong>.</p>
 <p>Play the sequence below to watch it form: the camera moves along its path (green trail), and each step adds freshly triangulated points (green) to the growing cloud (blue). Drag to orbit the finished map.</p>
-<iframe src="pages/html/pointcloud.html" width="100%" height="700" frameborder="0" scrolling="no" style="display:block;border:0;"></iframe>
+<div class="demo-frame">
+<iframe src="pages/html/pointcloud.html" width="100%" height="625" frameborder="0" scrolling="no" loading="lazy" onload="this.nextElementSibling.style.display='none'"></iframe>
+<div class="demo-loading"><div class="demo-spinner"></div>loading…</div>
+</div>
 
 
 
@@ -168,7 +171,7 @@ ul.task-list li input[type="checkbox"] {
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp('/' + window.location.host + '/');
+        var filterRegex = new RegExp("https:\/\/theopfr\.github\.io\/vslam-report\/");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }

@@ -1,0 +1,53 @@
+<svg viewBox="0 0 620 304" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  </style>
+  <defs>
+    <marker id="arrR" markerWidth="9" markerHeight="9" refX="6.5" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 Z" fill="rgba(207,231,216,0.55)"/>
+    </marker>
+    <marker id="arrL" markerWidth="9" markerHeight="9" refX="0.5" refY="3.5" orient="auto">
+      <path d="M7 0 L0 3.5 L7 7 Z" fill="rgba(207,231,216,0.55)"/>
+    </marker>
+    <marker id="rayHead" markerWidth="10" markerHeight="10" refX="7" refY="3.5" orient="auto">
+      <path d="M0 0 L7 3.5 L0 7 Z" fill="#cfe7d8"/>
+    </marker>
+  </defs>
+
+  <!-- optical axis (behind) -->
+  <line x1="110" y1="165" x2="585" y2="165" stroke="rgba(207,231,216,0.30)" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="545" y="158" text-anchor="middle" font-size="10" fill="rgba(207,231,216,0.6)">optical axis</text>
+
+  <!-- focal-length dimension between optical centre and the image plane -->
+  <g stroke="rgba(207,231,216,0.45)" stroke-width="0.8">
+    <line x1="110" y1="165" x2="110" y2="204"/>
+    <line x1="300" y1="165" x2="300" y2="204"/>
+  </g>
+  <line x1="111" y1="200" x2="299" y2="200" stroke="rgba(207,231,216,0.55)" stroke-width="1" marker-start="url(#arrL)" marker-end="url(#arrR)"/>
+  <text x="205" y="218" text-anchor="middle" font-size="12" fill="#7dffb2">focal length  <tspan font-style="italic">f</tspan></text>
+
+  <!-- image plane as an angled parallelogram -->
+  <path d="M272 95 L328 78 L328 235 L272 252 Z" fill="rgba(125,255,178,0.09)" stroke="#7dffb2" stroke-width="2"/>
+
+  <!-- ray: 3D point -> optical centre, crossing the plane at the pixel -->
+  <line x1="110" y1="165" x2="520" y2="85" stroke="#cfe7d8" stroke-width="1.6" marker-end="url(#rayHead)"/>
+
+  <!-- optical centre -->
+  <circle cx="110" cy="165" r="5" fill="#cfe7d8"/>
+  <text x="100" y="150" text-anchor="end" font-size="12" fill="#cfe7d8">optical centre</text>
+
+  <!-- principal point: where the optical axis pierces the plane -->
+  <circle cx="300" cy="165" r="4.5" fill="#7dffb2" stroke="#0b0f0e" stroke-width="0.8"/>
+  <text x="340" y="178" text-anchor="start" font-size="12" fill="#7dffb2">principal point (c<tspan font-size="9" dy="2">x</tspan><tspan dy="-2">, c</tspan><tspan font-size="9" dy="2">y</tspan><tspan dy="-2">)</tspan></text>
+
+  <!-- projected pixel on the plane -->
+  <g stroke="#eafff3" stroke-width="2">
+    <line x1="287" y1="127" x2="293" y2="133"/>
+    <line x1="293" y1="127" x2="287" y2="133"/>
+  </g>
+  <text x="315" y="117" text-anchor="end" font-size="12" fill="#eafff3">pixel</text>
+
+  <!-- 3D scene point -->
+  <circle cx="520" cy="85" r="5" fill="#cfe7d8"/>
+  <text x="520" y="74" text-anchor="middle" font-size="12" fill="#cfe7d8">3D point</text>
+</svg>
