@@ -1,0 +1,148 @@
+/* ===== GLOBAL BACKGROUND ===== */
+
+
+body {
+  background-color: #0b0f0e;
+  color: #dff1e6;
+  letter-spacing: 0.06em;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  background-image: radial-gradient(
+    rgba(0, 255, 136, 0.1) 1px,
+    transparent 1px
+  );
+
+  background-size: 22px 22px;
+
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== HEADINGS ===== */
+h1, h2, h3, h4 {
+  color: #7dffb2;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: none;
+  padding-bottom: 0.3rem;
+}
+
+/* ===== DOCUMENT TITLE / SUBTITLE ===== */
+.quarto-title .title,
+h1.title {
+  font-family: 'Times New Roman', Times, serif;
+  font-style: italic;
+  font-weight: 500;
+  text-transform: none;       /* override global h1 uppercase */
+  letter-spacing: 0.02em;
+  font-size: 3.4rem;
+  margin-bottom: 0;
+}
+
+/* ===== LINKS ===== */
+a {
+  color: #00ff88;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #00ffaa;
+  text-shadow: 0 0 8px #00ff88;
+}
+
+/* ===== SIDEBAR (Quarto specific) ===== */
+#quarto-sidebar,
+.sidebar,
+.quarto-sidebar {
+  background-color: #0b0f0e !important;
+  color: #dff1e6;
+  border-right: 1px solid rgba(0, 255, 136, 0.15);
+}
+
+.sidebar-title {
+  color: #7dffb2;
+}
+
+.sidebar .sidebar-item a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 1.2rem;
+  color: #dff1e6 !important;
+}
+
+.sidebar .sidebar-item a::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #dff1e6;
+  opacity: 0.9;
+  transition: all 0.2s ease;
+}
+
+/* hover state */
+.sidebar .sidebar-item a:hover::before {
+  background-color: #7dffb2;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+  transform: translateY(-50%) scale(1.2);
+}
+
+/* kill Quarto / browser link blue on hover */
+.sidebar .sidebar-item a:hover {
+  color: #7dffb2 !important;
+  text-decoration: none;
+  text-shadow: 0 0 8px rgba(0,255,136,0.4);
+}
+
+.sidebar.sidebar-navigation:not(.rollup) {
+  border-right: 1px solid #7dffb2 !important;
+}
+
+.quarto-sidebar-container {
+  background-color: #0b0f0e !important;
+}
+
+/* ===== CODE BLOCKS ===== */
+pre, code {
+  background-color: #0f1513;
+  color: #7dffb2;
+  border: 1px solid #1f3a33;
+}
+
+/* ===== CALLOUT BOXES ===== */
+.callout {
+  background-color: #0c1210;
+  border-left: 3px solid #00ff88;
+}
+
+/* ===== DIV SEPARATORS ===== */
+hr {
+  border: none;
+  border-top: 1px solid #1f3a33;
+  margin: 2rem 0;
+}
+
+/* ===== LIST SPACING ===== */
+#quarto-document-content ol > li,
+#quarto-document-content ul > li {
+  margin-bottom: 0.7rem;
+}
+#quarto-document-content ol > li:last-child,
+#quarto-document-content ul > li:last-child {
+  margin-bottom: 0;
+}
+
+/* ===== “HUD STYLE” GLOW EFFECT ===== */
+h1, h2 {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
+}

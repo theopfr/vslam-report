@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+/* ===== RESET ===== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ====================================================================
+   SINGLE SOURCE OF TRUTH FOR GEOMETRY
+   --------------------------------------------------------------------
+   Every section has the exact same fixed height. The whole component
+   height is therefore deterministic:
+
+       component height = (--pad-y * 2) + (--section-h * 6)
+
+   This MUST match the iframe height set in index.qmd:
+       2 * 24px + 6 * 160px = 1008px
+   ==================================================================== */
+:root {
+  --section-h: 160px;   /* fixed height of EVERY section */
+  --pad-y: 24px;        /* vertical padding of the .tl wrapper */
+  --sections: 6;
+}
+
+body {
+  font-family: 'IBM Plex Mono', monospace;
+  background-color: transparent;
+  color: #cfe7d8;
+  letter-spacing: 0.06em;
+  position: relative;
+}
+
+/* ===== LAYOUT ===== */
+.tl {
+  display: flex;
+  gap: 0;
+  padding: var(--pad-y) 1.5rem;
+  max-width: 750px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== TRACK ===== */
+.track-col {
+  display: block;
+  width: 32px;
+  flex-shrink: 0;
+  position: relative;
+  margin-right: 1.5rem;
+
+  /* exact, deterministic height: one full stack of sections */
+  height: calc(var(--section-h) * var(--sections));
+}
+
+.track-bg {
+  position: absolute;
+  top: 0;
+  /* stop the line exactly at the center of the last node:
+     (sections - 0.5) * section-h  →  no stub past the final node */
+  height: calc(var(--section-h) * (var(--sections) - 0.5));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+
+  background: linear-gradient(
+    to bottom,
+    rgba(207, 231, 216, 0.35),
+    rgba(125, 255, 178, 0.10)
+  );
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.08);
+}
+
+.track-fill {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 0;
+
+  background: #7dffb2;
+  box-shadow:
+    0 0 10px rgba(0, 255, 136, 0.35),
+    0 0 18px rgba(0, 255, 136, 0.15);
+  transition: height 0.18s ease;
+}
+
+/* ===== NODES (one per section, always visible) ===== */
+.node {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  z-index: 5;
+
+  /* inactive (unvisited) look */
+  background: #0b0f0e;
+  border: 1.5px solid rgba(207, 231, 216, 0.35);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.node.active {
+  background: #7dffb2;
+  border-color: #7dffb2;
+  box-shadow:
+    0 0 8px rgba(0, 255, 136, 0.55),
+    0 0 16px rgba(0, 255, 136, 0.25);
+}
+
+/* faint preview of the step title shown next to an unvisited node */
+.node-label {
+  position: absolute;
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(125, 255, 178);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* once visited, the real section title takes over - hide the preview */
+.node.active .node-label {
+  opacity: 0;
+}
+
+/* ===== HANDLE ===== */
+.handle {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #0b0f0e;
+  border: 1px solid #7dffb2;
+  cursor: default;
+  z-index: 10;
+  top: 0;
+  user-select: none;
+  pointer-events: none;
+
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
+  transition: top 0.18s ease, box-shadow 0.2s ease;
+}
+
+/* ===== SECTIONS ===== */
+.steps-col {
+  flex: 1;
+}
+
+/* each section: FIXED height, content vertically centered */
+.step {
+  height: var(--section-h);
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.step.visible {
+  opacity: 1;
+}
+
+/* ===== IMAGE PANELS ===== */
+.step-img {
+  width: 170px;
+  height: 120px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #def1eb;
+  border: 1px solid rgb(0, 255, 136);
+  overflow: hidden;
+}
+
+.step-img svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ===== TEXT ===== */
+.step-text { flex: 1; }
+
+.step-num {
+  font-size: 11px;
+  color: rgba(207, 231, 216, 0.6);
+  font-weight: 500;
+  margin-bottom: 5px;
+  letter-spacing: 0.08em;
+}
+
+.step-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #7dffb2;
+  margin-bottom: 6px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.12);
+}
+
+.step-desc {
+  font-size: 13px;
+  color: #cfe7d8;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body>
+<div class="tl">
+  <!-- vertical track -->
+  <div class="track-col" id="track-col">
+    <div class="track-bg"></div>
+    <div class="track-fill" id="track-fill"></div>
+    <!-- nodes + handle injected by JS -->
+    <div class="handle" id="handle"></div>
+  </div>
+
+  <!-- sections -->
+  <div class="steps-col" id="steps-col"></div>
+</div>
+
+<script>
+const svgs = [
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f0f4f8"/>
+  <rect x="0" y="0" width="130" height="48" fill="#ddeaf7"/>
+  <rect x="0" y="48" width="130" height="50" fill="#e8ede4"/>
+  <rect x="18" y="18" width="26" height="40" fill="#b0bec5"/>
+  <rect x="20" y="22" width="7" height="8" fill="#e3f0fb"/>
+  <rect x="31" y="22" width="7" height="8" fill="#e3f0fb"/>
+  <rect x="20" y="34" width="7" height="8" fill="#e3f0fb"/>
+  <rect x="50" y="26" width="20" height="32" fill="#90a4ae"/>
+  <rect x="53" y="30" width="5" height="6" fill="#e3f0fb"/>
+  <rect x="61" y="30" width="5" height="6" fill="#e3f0fb"/>
+  <line x1="0" y1="70" x2="130" y2="70" stroke="#ccc" stroke-width="0.5"/>
+  <line x1="26" y1="60" x2="0" y2="98" stroke="#bbb" stroke-width="0.5"/>
+  <line x1="78" y1="60" x2="130" y2="98" stroke="#bbb" stroke-width="0.5"/>
+  <rect x="88" y="32" width="34" height="24" rx="4" fill="#222"/>
+  <circle cx="102" cy="44" r="8" fill="#333"/>
+  <circle cx="102" cy="44" r="5" fill="#111"/>
+  <circle cx="102" cy="44" r="3" fill="#1a1a2e"/>
+  <circle cx="100" cy="42" r="0.9" fill="#fff" opacity="0.4"/>
+  <rect x="116" y="36" width="5" height="4" rx="1" fill="#444"/>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f0f4f8"/>
+  <rect x="0" y="0" width="130" height="48" fill="#ddeaf7"/>
+  <rect x="0" y="48" width="130" height="50" fill="#e8ede4"/>
+  <rect x="18" y="18" width="26" height="40" fill="#b0bec5"/>
+  <rect x="50" y="26" width="20" height="32" fill="#90a4ae"/>
+  <line x1="0" y1="70" x2="130" y2="70" stroke="#ccc" stroke-width="0.5"/>
+  <circle cx="18" cy="18" r="6" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="18" y1="18" x2="23" y2="13" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="44" cy="18" r="5" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="44" y1="18" x2="49" y2="14" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="70" cy="26" r="6" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="70" y1="26" x2="76" y2="21" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="50" cy="48" r="5" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="50" y1="48" x2="54" y2="44" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="98" cy="40" r="5" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="98" y1="40" x2="103" y2="36" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="28" cy="62" r="4" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <circle cx="115" cy="55" r="4" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
+  <line x1="115" y1="55" x2="120" y2="51" stroke="#f59e0b" stroke-width="1.2"/>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f7f7f7"/>
+  <rect x="3" y="10" width="50" height="38" rx="3" fill="#ddeaf7" stroke="#bbb" stroke-width="0.8"/>
+  <rect x="8" y="15" width="12" height="20" rx="1" fill="#b0bec5"/>
+  <rect x="26" y="18" width="16" height="17" rx="1" fill="#90a4ae"/>
+  <rect x="77" y="10" width="50" height="38" rx="3" fill="#ddeaf7" stroke="#bbb" stroke-width="0.8"/>
+  <rect x="82" y="15" width="12" height="20" rx="1" fill="#b0bec5"/>
+  <rect x="100" y="18" width="16" height="17" rx="1" fill="#90a4ae"/>
+  <circle cx="14" cy="17" r="3" fill="#f59e0b" stroke="#fff" stroke-width="0.7"/>
+  <circle cx="88" cy="15" r="3" fill="#f59e0b" stroke="#fff" stroke-width="0.7"/>
+  <line x1="17" y1="17" x2="85" y2="15" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3 2" opacity="0.9"/>
+  <circle cx="28" cy="33" r="3" fill="#34d399" stroke="#fff" stroke-width="0.7"/>
+  <circle cx="104" cy="30" r="3" fill="#34d399" stroke="#fff" stroke-width="0.7"/>
+  <line x1="31" y1="33" x2="101" y2="30" stroke="#34d399" stroke-width="1" stroke-dasharray="3 2" opacity="0.9"/>
+  <circle cx="40" cy="22" r="3" fill="#60a5fa" stroke="#fff" stroke-width="0.7"/>
+  <circle cx="114" cy="20" r="3" fill="#60a5fa" stroke="#fff" stroke-width="0.7"/>
+  <line x1="43" y1="22" x2="111" y2="20" stroke="#60a5fa" stroke-width="1" stroke-dasharray="3 2" opacity="0.9"/>
+  <circle cx="16" cy="40" r="3" fill="#f87171" stroke="#fff" stroke-width="0.7"/>
+  <circle cx="96" cy="44" r="3" fill="#f87171" stroke="#fff" stroke-width="0.7"/>
+  <line x1="19" y1="40" x2="93" y2="44" stroke="#f87171" stroke-width="0.8" stroke-dasharray="3 2" opacity="0.5"/>
+  <line x1="93" y1="41" x2="99" y2="47" stroke="#f87171" stroke-width="1.4"/>
+  <line x1="99" y1="41" x2="93" y2="47" stroke="#f87171" stroke-width="1.4"/>
+  <text x="28" y="62" text-anchor="middle" font-size="8" fill="#aaa" font-family="sans-serif">frame t</text>
+  <text x="102" y="62" text-anchor="middle" font-size="8" fill="#aaa" font-family="sans-serif">frame t+1</text>
+  <text x="65" y="85" text-anchor="middle" font-size="8" fill="#bbb" font-family="sans-serif">RANSAC removes outliers</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f7f7f7"/>
+  <line x1="16" y1="82" x2="70" y2="82" stroke="#ddd" stroke-width="0.8"/>
+  <line x1="16" y1="82" x2="16" y2="34" stroke="#ddd" stroke-width="0.8"/>
+  <text x="73" y="85" font-size="8" fill="#ccc" font-family="sans-serif">X</text>
+  <text x="10" y="31" font-size="8" fill="#ccc" font-family="sans-serif">Y</text>
+  <polygon points="26,72 38,59 50,72" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="29" y="54" width="16" height="10" rx="2" fill="#f0f4f8" stroke="#60a5fa" stroke-width="1.2"/>
+  <text x="38" y="86" text-anchor="middle" font-size="8" fill="#60a5fa" font-family="sans-serif">C₁</text>
+  <polygon points="74,54 88,38 102,52" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linejoin="round"/>
+  <rect x="78" y="32" width="16" height="10" rx="2" fill="#f0f4f8" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="88" y="70" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="sans-serif">C₂</text>
+  <path d="M49,65 Q62,52 74,54" fill="none" stroke="#555" stroke-width="1.2" stroke-dasharray="3 2"/>
+  <polygon points="72,51 78,57 70,58" fill="#555"/>
+  <text x="60" y="47" font-size="10" fill="#555" font-family="sans-serif" font-style="italic">R, t</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f7f7f7"/>
+  <circle cx="65" cy="22" r="6" fill="#34d399"/>
+  <text x="74" y="26" font-size="9" fill="#34d399" font-family="sans-serif" font-weight="600">P</text>
+  <line x1="24" y1="80" x2="61" y2="27" stroke="#60a5fa" stroke-width="1.4" stroke-dasharray="4 2"/>
+  <line x1="106" y1="76" x2="69" y2="27" stroke="#f59e0b" stroke-width="1.4" stroke-dasharray="4 2"/>
+  <circle cx="24" cy="80" r="7" fill="#f0f4f8" stroke="#60a5fa" stroke-width="1.5"/>
+  <circle cx="24" cy="80" r="2.5" fill="#60a5fa"/>
+  <text x="24" y="94" text-anchor="middle" font-size="8" fill="#60a5fa" font-family="sans-serif">C₁</text>
+  <circle cx="106" cy="76" r="7" fill="#f0f4f8" stroke="#f59e0b" stroke-width="1.5"/>
+  <circle cx="106" cy="76" r="2.5" fill="#f59e0b"/>
+  <text x="106" y="90" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="sans-serif">C₂</text>
+  <line x1="31" y1="84" x2="99" y2="80" stroke="#ddd" stroke-width="0.8"/>
+  <text x="65" y="95" text-anchor="middle" font-size="8" fill="#bbb" font-family="sans-serif">baseline</text>
+</svg>`,
+
+`<svg viewBox="0 0 130 98" xmlns="http://www.w3.org/2000/svg">
+  <rect width="130" height="98" fill="#f7f7f7"/>
+  <circle cx="40" cy="24" r="2.2" fill="#34d399" opacity="0.85"/>
+  <circle cx="62" cy="16" r="1.8" fill="#34d399" opacity="0.7"/>
+  <circle cx="84" cy="30" r="2.5" fill="#34d399" opacity="0.9"/>
+  <circle cx="52" cy="42" r="1.8" fill="#34d399" opacity="0.65"/>
+  <circle cx="100" cy="22" r="2" fill="#34d399" opacity="0.75"/>
+  <circle cx="70" cy="52" r="1.8" fill="#34d399" opacity="0.6"/>
+  <circle cx="30" cy="58" r="2.2" fill="#34d399" opacity="0.7"/>
+  <circle cx="112" cy="46" r="1.8" fill="#34d399" opacity="0.65"/>
+  <circle cx="88" cy="62" r="2.5" fill="#34d399" opacity="0.8"/>
+  <circle cx="44" cy="72" r="1.8" fill="#34d399" opacity="0.55"/>
+  <circle cx="74" cy="74" r="2" fill="#34d399" opacity="0.7"/>
+  <circle cx="106" cy="68" r="1.8" fill="#34d399" opacity="0.6"/>
+  <circle cx="20" cy="40" r="1.6" fill="#34d399" opacity="0.5"/>
+  <circle cx="120" cy="36" r="1.6" fill="#34d399" opacity="0.55"/>
+  <path d="M14,88 Q34,72 54,60 Q72,50 90,38 Q108,26 122,16" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4 2" opacity="0.8"/>
+  <circle cx="14" cy="88" r="4" fill="#fff" stroke="#60a5fa" stroke-width="1.5"/>
+  <circle cx="68" cy="50" r="4" fill="#fff" stroke="#60a5fa" stroke-width="1.5"/>
+  <circle cx="122" cy="16" r="4" fill="#fff" stroke="#60a5fa" stroke-width="1.5"/>
+  <text x="65" y="95" text-anchor="middle" font-size="8" fill="#bbb" font-family="sans-serif">map + trajectory</text>
+</svg>`
+];
+
+const steps = [
+  { label: "Images",           title: "Image capture",            desc: "The camera captures a continuous stream of frames. Each frame is a 2D grid of pixel intensities - the raw input to the entire vSLAM pipeline." },
+  { label: "ORB features",     title: "ORB feature detection",   desc: "Distinctive keypoints (corners, blobs) are detected and each is encoded as a compact binary descriptor. ORB is fast enough to run in real time on embedded hardware." },
+  { label: "Feature matching", title: "Feature matching",         desc: "Descriptors from consecutive frames are compared by Hamming distance. Matched pairs identify the same real-world point seen from two positions. RANSAC removes outliers." },
+  { label: "Camera motion",    title: "Camera motion estimation", desc: "From the matched pairs, the essential matrix is solved to recover the relative rotation R and translation t between frames - the camera's movement in space." },
+  { label: "Triangulation",    title: "Triangulation",            desc: "Each matched pair defines two optical rays. Where they intersect gives the 3D position of that landmark. Depth is recovered without any active sensor." },
+  { label: "Point cloud",      title: "Sparse point cloud map",   desc: "All triangulated landmarks accumulate into a sparse 3D map. The sequence of estimated poses forms the camera trajectory. Loop closure corrects drift when a place is revisited." },
+];
+
+/* ---- geometry: read the fixed section height straight from CSS ---- */
+const SECTION_H = parseFloat(
+  getComputedStyle(document.documentElement).getPropertyValue('--section-h')
+);
+const N = steps.length;
+
+/* center of section i (relative to the track-col / steps-col top) */
+const nodeCenter = i => (i + 0.5) * SECTION_H;
+
+const stepsCol  = document.getElementById('steps-col');
+const trackCol  = document.getElementById('track-col');
+const trackFill = document.getElementById('track-fill');
+const handle    = document.getElementById('handle');
+
+/* build the fixed-height sections */
+stepsCol.innerHTML = steps.map((s, i) => `
+  <div class="step" id="step-${i}">
+    <div class="step-img">${svgs[i]}</div>
+    <div class="step-text">
+      <div class="step-num">Step ${i + 1} of ${N}</div>
+      <div class="step-title">${s.title}</div>
+      <div class="step-desc">${s.desc}</div>
+    </div>
+  </div>
+`).join('');
+
+/* build the always-visible nodes, perfectly aligned to section centers */
+const nodes = [];
+for (let i = 0; i < N; i++) {
+  const node = document.createElement('div');
+  node.className = 'node';
+  node.style.top = nodeCenter(i) + 'px';
+
+  const label = document.createElement('div');
+  label.className = 'node-label';
+  label.textContent = steps[i].title;
+  node.appendChild(label);
+
+  trackCol.insertBefore(node, handle);
+  nodes.push(node);
+}
+
+let revealed = 1; // number of visited sections (1..N)
+
+function reveal(count) {
+  count = Math.max(1, Math.min(N, count));
+  revealed = count;
+
+  const y = nodeCenter(count - 1); // last visited node = current position
+
+  handle.style.top    = y + 'px';
+  trackFill.style.height = y + 'px';
+
+  for (let i = 0; i < N; i++) {
+    nodes[i].classList.toggle('active', i < count);
+    document.getElementById('step-' + i).classList.toggle('visible', i < count);
+  }
+}
+
+/* ---- reveal driven by the parent page's scroll position ----
+   the component lives in a same-origin iframe, so it can read where it sits in
+   the parent viewport; each step lights up once its centre scrolls past a
+   trigger line partway down the screen. */
+const inIframe = !!window.frameElement;
+const TRIGGER = 0.62;   // fraction down the viewport where a step activates
+
+function countFromScroll() {
+  const frameTop = window.frameElement.getBoundingClientRect().top;
+  const vh = window.parent.innerHeight || window.innerHeight;
+  const line = vh * TRIGGER;
+  let count = 0;
+  for (let i = 0; i < N; i++) {
+    const r = document.getElementById('step-' + i).getBoundingClientRect();
+    if (frameTop + r.top + r.height / 2 <= line) count++;
+  }
+  return count;
+}
+
+function onScroll() { reveal(countFromScroll()); }
+
+if (inIframe) {
+  window.parent.addEventListener('scroll', onScroll, { passive: true });
+  window.parent.addEventListener('resize', onScroll, { passive: true });
+  onScroll();
+} else {
+  reveal(N);   // opened standalone - just show everything
+}
+</script>
+</body>
+</html>

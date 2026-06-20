@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: transparent; color: #cfe7d8; letter-spacing: 0.04em; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 1rem; }
+canvas#stage {
+  display: block; width: 100%; height: auto;
+  border: 1px solid rgba(0,255,136,0.35); border-radius: 8px;
+  background: #0b0f0e; cursor: grab; box-shadow: 0 0 18px rgba(0,255,136,0.08);
+}
+canvas#stage:active { cursor: grabbing; }
+.hint { text-align: left; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
+.controls { display: flex; justify-content: center; margin-top: 0.9rem; }
+.reset { font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(207,231,216,0.6); background: transparent; border: 1px solid rgba(207,231,216,0.2); border-radius: 6px; padding: 0.55rem 0.9rem; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="stage" width="720" height="344"></canvas>
+  <div class="hint">- how to use: drag the corner to move it, drag outside the patch circle to rotate</div>
+  <div class="hint">- the bit rows are the two descriptors of how alike the areas inside the two green circles are</div>
+  <div class="controls"><button class="reset" id="reset">Reset</button></div>
+</div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+
+const PS = 120, SIZE = 200, LX = 40, RX = 480, PY = 30;
+const SC = SIZE / PS;                 // display scale
+const PATCH_R = 22, N = 48, THRESH = 10;
+const DRAG_MIN = 0.25 * PS, DRAG_MAX = 0.75 * PS;   // limit how far the corner can be dragged
+const DARK = 60, LIGHT = 205;
+const CIRC = { x: 6, y: 6, r: 44 };   // fixed circle in the top-left (its lower-right quarter shows)
+const DEF = { x: 64, y: 74 };         // default corner position (patch is clean here)
+
+let cornerX = DEF.x, cornerY = DEF.y, angLeft = 0;
+
+// BRIEF pattern: 48 offset-pairs within the patch
+function randn(){ const u=Math.random(),v=Math.random(); return Math.sqrt(-2*Math.log(u+1e-9))*Math.cos(2*Math.PI*v); }
+function rOff(){ let x,y; do { x=randn()*PATCH_R*0.5; y=randn()*PATCH_R*0.5; } while (x*x+y*y > PATCH_R*PATCH_R); return [x,y]; }
+const PAIRS = Array.from({length:N}, () => ({ a:rOff(), b:rOff() }));
+
+const off = document.createElement('canvas'); off.width=PS; off.height=PS;
+const octx = off.getContext('2d');
+const clampi = x => Math.max(0, Math.min(PS-1, Math.round(x)));
+
+// fixed Gaussian sensor noise, shared by both images (so aligned patches still
+// match exactly). A descriptor deadband (MARGIN) keeps flat areas stable, so the
+// noise only flips a few near-tie bits as you drag/rotate - the match holds.
+const SIGMA = 5, MARGIN = 22;
+const noiseField = new Float32Array(PS*PS);
+for (let i=0; i<PS*PS; i++) noiseField[i] = randn() * SIGMA;
+
+// the scene: a dark object whose corner is the feature (at cx,cy, rotated by ang)
+// + the fixed top-left circle. Returns a grayscale buffer.
+function makeScene(cx, cy, ang) {
+  const g = new Uint8ClampedArray(PS*PS);
+  const c = Math.cos(ang), s = Math.sin(ang);
+  for (let y=0; y<PS; y++) for (let x=0; x<PS; x++) {
+    const dx=x-cx, dy=y-cy;
+    const rx = dx*c + dy*s, ry = -dx*s + dy*c;
+    let dark = (rx>0 && ry>0);                                  // the corner (90° wedge)
+    const ex=x-CIRC.x, ey=y-CIRC.y;
+    if (ex*ex+ey*ey <= CIRC.r*CIRC.r) dark = true;             // the fixed circle
+    g[y*PS+x] = (dark ? DARK : LIGHT) + noiseField[y*PS+x];
+
+  }
+  return g;
+}
+const gray = (g,x,y) => g[clampi(y)*PS + clampi(x)];
+
+// orientation (intensity centroid) → makes the descriptor rotation invariant
+function orientation(g, cx, cy) {
+  let m10=0, m01=0;
+  for (let dy=-PATCH_R; dy<=PATCH_R; dy++) for (let dx=-PATCH_R; dx<=PATCH_R; dx++)
+    if (dx*dx+dy*dy <= PATCH_R*PATCH_R) { const I=gray(g,cx+dx,cy+dy); m10+=dx*I; m01+=dy*I; }
+  return Math.atan2(m01, m10);
+}
+function descriptor(g, cx, cy, theta) {
+  const c=Math.cos(theta), s=Math.sin(theta), bits=new Uint8Array(N);
+  for (let i=0;i<N;i++){
+    const p=PAIRS[i];
+    const ax=p.a[0]*c-p.a[1]*s, ay=p.a[0]*s+p.a[1]*c;
+    const bx=p.b[0]*c-p.b[1]*s, by=p.b[0]*s+p.b[1]*c;
+    bits[i] = (gray(g,cx+bx,cy+by) - gray(g,cx+ax,cy+ay)) > MARGIN ? 1 : 0;
+  }
+  return bits;
+}
+
+function drawScene(g, dx, dy) {
+  const img = octx.createImageData(PS, PS);
+  for (let i=0;i<PS*PS;i++){ const v=g[i]; img.data[i*4]=v; img.data[i*4+1]=v; img.data[i*4+2]=v; img.data[i*4+3]=255; }
+  octx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=false; ctx.drawImage(off, 0,0,PS,PS, dx,dy,SIZE,SIZE);
+  ctx.strokeStyle='rgba(0,255,136,0.35)'; ctx.lineWidth=1; ctx.strokeRect(dx+0.5,dy+0.5,SIZE-1,SIZE-1);
+}
+function patchUI(cx, cy) {
+  ctx.strokeStyle='#7dffb2'; ctx.lineWidth=2.5; ctx.setLineDash([6,4]);
+  ctx.shadowColor='rgba(0,255,136,0.5)'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.arc(cx, cy, PATCH_R*SC, 0, 7); ctx.stroke();
+  ctx.shadowBlur=0; ctx.setLineDash([]);
+  ctx.fillStyle='#7dffb2'; ctx.beginPath(); ctx.arc(cx,cy,3.5,0,7); ctx.fill();
+}
+function bitRow(bits, diff, y, label) {
+  const startX=90, endX=700, step=(endX-startX)/N, cw=step-2;
+  ctx.fillStyle='rgba(207,231,216,0.6)'; ctx.font='11px IBM Plex Mono, monospace'; ctx.fillText(label, 14, y+12);
+  for (let i=0;i<N;i++){ const x=startX+i*step;
+    // draw the bit's value: filled = 1, empty outline = 0
+    if (bits[i]){ ctx.fillStyle='#7dffb2'; ctx.fillRect(x,y,cw,15); }
+    else { ctx.strokeStyle='rgba(207,231,216,0.3)'; ctx.lineWidth=1; ctx.strokeRect(x+0.5,y+0.5,cw-1,14); }
+    // mark a differing bit with a red outline (value stays visible underneath)
+    if (diff[i]){ ctx.strokeStyle='#ff6b6b'; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,cw-2,13); } }
+}
+
+function render() {
+  const gL = makeScene(cornerX, cornerY, angLeft);
+  const gR = makeScene(DEF.x, DEF.y, 0);
+  const thL = orientation(gL, cornerX, cornerY), thR = orientation(gR, DEF.x, DEF.y);
+  const dL = descriptor(gL, cornerX, cornerY, thL), dR = descriptor(gR, DEF.x, DEF.y, thR);
+  const diff = new Uint8Array(N); let ham=0;
+  for (let i=0;i<N;i++){ diff[i]=dL[i]^dR[i]; ham+=diff[i]; }
+  const matched = ham < THRESH;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='rgba(207,231,216,0.6)'; ctx.font='11px IBM Plex Mono, monospace';
+  ctx.fillText('image (drag the corner)', LX, PY-7);
+  ctx.fillText('reference', RX, PY-7);
+  drawScene(gL, LX, PY); drawScene(gR, RX, PY);
+
+  const cL = { x: LX+cornerX*SC, y: PY+cornerY*SC };
+  const cR = { x: RX+DEF.x*SC, y: PY+DEF.y*SC };
+  patchUI(cL.x, cL.y); patchUI(cR.x, cR.y);
+
+  if (matched) {
+    ctx.strokeStyle='#7dffb2'; ctx.lineWidth=2; ctx.shadowColor='rgba(0,255,136,0.5)'; ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.moveTo(cL.x,cL.y); ctx.lineTo(cR.x,cR.y); ctx.stroke(); ctx.shadowBlur=0;
+  }
+  ctx.textAlign='center'; ctx.font='13px IBM Plex Mono, monospace';
+  ctx.fillStyle = matched ? '#7dffb2' : 'rgba(255,107,107,0.9)';
+  ctx.fillText(matched ? 'MATCH' : 'NO MATCH', 360, PY+SIZE/2+4);
+  ctx.textAlign='left';
+
+  bitRow(dL, diff, 252, 'left');
+  bitRow(dR, diff, 284, 'right');
+  ctx.fillStyle='rgba(207,231,216,0.5)'; ctx.font='10px IBM Plex Mono, monospace'; ctx.textAlign='center';
+  ctx.fillText('green = 1 · empty = 0 · red outline = differing bit', 360, 327); ctx.textAlign='left';
+}
+
+// ---- drag inside the patch = move the corner; outside = rotate ----
+let drag=null, lastAng=0;
+function toImg(e){ const r=canvas.getBoundingClientRect();
+  return { mx:((e.touches?e.touches[0].clientX:e.clientX)-r.left)*canvas.width/r.width,
+           my:((e.touches?e.touches[0].clientY:e.clientY)-r.top)*canvas.height/r.height }; }
+function start(e){
+  const {mx,my}=toImg(e);
+  if (mx<LX||mx>LX+SIZE||my<PY||my>PY+SIZE) return false;
+  const cx=LX+cornerX*SC, cy=PY+cornerY*SC;
+  if (Math.hypot(mx-cx,my-cy) < PATCH_R*SC) { drag='move'; setCorner(mx,my); }
+  else { drag='rot'; lastAng=Math.atan2(my-cy,mx-cx); }
+  return true;
+}
+function setCorner(mx,my){
+  cornerX = Math.max(DRAG_MIN, Math.min(DRAG_MAX, (mx-LX)/SC));
+  cornerY = Math.max(DRAG_MIN, Math.min(DRAG_MAX, (my-PY)/SC));
+}
+function move(e){
+  if(!drag) return;
+  const {mx,my}=toImg(e);
+  if (drag==='move') setCorner(mx,my);
+  else { const cx=LX+cornerX*SC, cy=PY+cornerY*SC, a=Math.atan2(my-cy,mx-cx); angLeft+=a-lastAng; lastAng=a; }
+  render();
+}
+canvas.addEventListener('mousedown', e=>{ if(start(e)) render(); });
+canvas.addEventListener('mousemove', move);
+window.addEventListener('mouseup', ()=>drag=null);
+canvas.addEventListener('touchstart', e=>{ if(start(e)){ e.preventDefault(); render(); } }, {passive:false});
+canvas.addEventListener('touchmove', e=>{ if(drag){ move(e); e.preventDefault(); } }, {passive:false});
+window.addEventListener('touchend', ()=>drag=null);
+
+document.getElementById('reset').addEventListener('click', ()=>{ cornerX=DEF.x; cornerY=DEF.y; angLeft=0; render(); });
+
+render();
+</script>
+</body>
+</html>

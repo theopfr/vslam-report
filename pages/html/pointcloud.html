@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Mono', ui-monospace, monospace; background: transparent; color: #cfe7d8; letter-spacing: 0.04em; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 1rem; }
+canvas#stage {
+  display: block; width: 100%; height: auto;
+  border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 8px;
+  background: #0b0f0e; cursor: grab; box-shadow: 0 0 18px rgba(0, 255, 136, 0.08);
+}
+canvas#stage:active { cursor: grabbing; }
+.hint { text-align: center; font-size: 11px; color: rgba(207,231,216,0.5); margin-top: 0.5rem; letter-spacing: 0.06em; }
+.params { margin-top: 0.9rem; display: flex; align-items: flex-end; gap: 1rem; }
+.param { flex: 1; }
+.param label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(207,231,216,0.7); margin-bottom: 0.3rem; }
+.param label .val { color: #7dffb2; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; background: rgba(207,231,216,0.25); border-radius: 2px; outline: none; cursor: pointer; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #0b0f0e; border: 1.5px solid #7dffb2; box-shadow: 0 0 8px rgba(0,255,136,0.4); }
+.btn { font-family: inherit; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(207,231,216,0.75); background: transparent; border: 1px solid rgba(0,255,136,0.3); border-radius: 6px; padding: 0.55rem 1rem; cursor: pointer; white-space: nowrap; }
+.btn:hover { color: #7dffb2; border-color: #7dffb2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="stage" width="720" height="540"></canvas>
+  <div class="hint">drag to orbit · play the sequence to watch the map fill in as the camera moves</div>
+
+  <div class="params">
+    <div class="param">
+      <label for="frame">Frames processed <span class="val" id="frame-val">14 / 14</span></label>
+      <input type="range" id="frame" min="1" max="14" step="1" value="14">
+    </div>
+    <button class="btn" id="play">▶ play</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+
+// ---- helpers ----
+const add = (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const scl = (a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const mv  = (M,v)=>[M[0]*v[0]+M[1]*v[1]+M[2]*v[2], M[3]*v[0]+M[4]*v[1]+M[5]*v[2], M[6]*v[0]+M[7]*v[1]+M[8]*v[2]];
+const rotY= a=>[Math.cos(a),0,Math.sin(a),0,1,0,-Math.sin(a),0,Math.cos(a)];
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+const N = 14;   // number of keyframes
+
+// ---- camera trajectory (a gentle forward sweep) ----
+const traj = [], yaw = [];
+for (let k=0;k<N;k++){
+  const t = k/(N-1);
+  traj.push([ Math.sin(t*Math.PI*1.1)*1.4, Math.sin(t*Math.PI*2)*0.18, t*8 ]);
+}
+for (let k=0;k<N;k++){
+  const a = traj[Math.max(0,k-1)], b = traj[Math.min(N-1,k+1)];
+  const d = sub(b,a); yaw.push(Math.atan2(d[0], d[2]));
+}
+
+// ---- sparse landmarks (fixed once), each with a "discovery" frame ----
+const LM = [];
+(function(){
+  for (let i=0;i<150;i++){
+    const z = 0.4 + Math.random()*8.6;
+    const side = Math.random()<0.5 ? -1 : 1;
+    // bias points toward two loose "walls" either side of the path, plus scatter
+    const x = side*(1.6 + Math.random()*1.7) + (Math.random()*2-1)*0.5 + Math.sin(z/8*Math.PI*1.1)*1.4;
+    const y = (Math.random()*2-1)*1.5;
+    const df = clamp(Math.round((z/8)*(N-1)) - 2, 0, N-1);
+    LM.push({ p:[x,y,z], df });
+  }
+})();
+
+// ---- orbit view ----
+let az = 0.65, el = 0.42;
+const TARGET = [0, 0, 4.2], SCALE = 46, CX = 360, CY = 275;
+function project(p){
+  const x = p[0]-TARGET[0], y = p[1]-TARGET[1], z = p[2]-TARGET[2];
+  const x1 =  x*Math.cos(az) + z*Math.sin(az);
+  const z1 = -x*Math.sin(az) + z*Math.cos(az);
+  const y2 =  y*Math.cos(el) - z1*Math.sin(el);
+  return { x: CX + x1*SCALE, y: CY - y2*SCALE };
+}
+function line3(p,q,style,width,dash){ const a=project(p),b=project(q); ctx.strokeStyle=style; ctx.lineWidth=width||1; ctx.setLineDash(dash||[]); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.setLineDash([]); }
+function dot3(p,r,color,glow){ const a=project(p); ctx.fillStyle=color; if(glow){ctx.shadowColor=color;ctx.shadowBlur=8;} ctx.beginPath(); ctx.arc(a.x,a.y,r,0,7); ctx.fill(); ctx.shadowBlur=0; }
+function label3(p,txt,color,dx,dy){ const a=project(p); ctx.fillStyle=color; ctx.font='11px IBM Plex Mono, monospace'; ctx.fillText(txt,a.x+(dx||6),a.y+(dy||-6)); }
+
+const F = 0.42, HS = 0.32;
+function camera(apex, ry, color, fill){
+  const Rw = rotY(ry);
+  const d = mv(Rw,[0,0,1]), r = mv(Rw,[1,0,0]), u = mv(Rw,[0,1,0]);
+  const c = add(apex, scl(d,F));
+  const cc = [ add(add(c,scl(r,HS)),scl(u,HS)), add(add(c,scl(r,-HS)),scl(u,HS)), add(add(c,scl(r,-HS)),scl(u,-HS)), add(add(c,scl(r,HS)),scl(u,-HS)) ];
+  if (fill){ const q=cc.map(project); ctx.fillStyle=fill; ctx.beginPath(); ctx.moveTo(q[0].x,q[0].y); for(let i=1;i<4;i++) ctx.lineTo(q[i].x,q[i].y); ctx.closePath(); ctx.fill(); }
+  for(let i=0;i<4;i++) line3(cc[i],cc[(i+1)%4],color,1.2);
+  cc.forEach(p=>line3(apex,p,color,1));
+}
+
+let frame = N;
+
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // ground reference line (start → current along z)
+  // landmarks discovered so far
+  let count = 0;
+  for (const m of LM){
+    if (m.df < frame){
+      const fresh = (m.df === frame-1);
+      dot3(m.p, fresh?3:2.2, fresh?'#7dffb2':'rgba(143,211,255,0.85)', fresh);
+      count++;
+    }
+  }
+
+  // camera trajectory up to current frame
+  for (let k=1;k<frame;k++) line3(traj[k-1], traj[k], 'rgba(125,255,178,0.8)', 2);
+
+  // past keyframes (faint) + current camera (amber)
+  for (let k=0;k<frame-1;k++) camera(traj[k], yaw[k], 'rgba(125,255,178,0.35)', null);
+  const cur = frame-1;
+  camera(traj[cur], yaw[cur], '#f5b14a', 'rgba(245,177,74,0.18)');
+  dot3(traj[cur], 4, '#f5b14a');
+  label3(traj[cur], `camera · frame ${frame}`, '#f5b14a', 8, -8);
+
+  // readout
+  ctx.fillStyle='rgba(207,231,216,0.6)'; ctx.font='11px IBM Plex Mono, monospace';
+  ctx.fillText(`mapped points: ${count}`, 14, 24);
+  // legend
+  ctx.fillStyle='rgba(207,231,216,0.5)'; ctx.font='10px IBM Plex Mono, monospace';
+  ctx.fillText('blue = mapped 3D points · green = freshly triangulated · trail = camera trajectory', 14, canvas.height-12);
+}
+
+// ---- frame slider ----
+const slider = document.getElementById('frame'), fval = document.getElementById('frame-val');
+function setFrame(k){ frame = clamp(k,1,N); slider.value = frame; fval.textContent = `${frame} / ${N}`; render(); }
+slider.addEventListener('input', ()=> setFrame(+slider.value));
+
+// ---- play ----
+let timer = null;
+const playBtn = document.getElementById('play');
+function stop(){ if(timer){ clearInterval(timer); timer=null; playBtn.textContent='▶ play'; } }
+playBtn.addEventListener('click', ()=>{
+  if (timer){ stop(); return; }
+  if (frame >= N) setFrame(1);
+  playBtn.textContent='⏸ pause';
+  timer = setInterval(()=>{ if(frame>=N){ stop(); return; } setFrame(frame+1); }, 420);
+});
+
+// ---- orbit ----
+let drag=false,lastX=0,lastY=0;
+function pt(e){ return { x:e.touches?e.touches[0].clientX:e.clientX, y:e.touches?e.touches[0].clientY:e.clientY }; }
+canvas.addEventListener('mousedown', e=>{ drag=true; const p=pt(e); lastX=p.x; lastY=p.y; });
+canvas.addEventListener('mousemove', e=>{ if(!drag) return; const p=pt(e); az+=(p.x-lastX)*0.01; el=clamp(el+(p.y-lastY)*0.01,-1.2,1.2); lastX=p.x; lastY=p.y; render(); });
+window.addEventListener('mouseup', ()=>drag=false);
+canvas.addEventListener('touchstart', e=>{ drag=true; const p=pt(e); lastX=p.x; lastY=p.y; e.preventDefault(); }, {passive:false});
+canvas.addEventListener('touchmove', e=>{ if(!drag) return; const p=pt(e); az+=(p.x-lastX)*0.01; el=clamp(el+(p.y-lastY)*0.01,-1.2,1.2); lastX=p.x; lastY=p.y; e.preventDefault(); render(); }, {passive:false});
+window.addEventListener('touchend', ()=>drag=false);
+
+render();
+</script>
+</body>
+</html>
