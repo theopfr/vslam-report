@@ -1,27 +1,16 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 /* ===== RESET ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ====================================================================
-   SINGLE SOURCE OF TRUTH FOR GEOMETRY
-   --------------------------------------------------------------------
-   Every section has the exact same fixed height. The whole component
-   height is therefore deterministic:
-
-       component height = (--pad-y * 2) + (--section-h * 6)
-
-   This MUST match the iframe height set in index.qmd:
-       2 * 24px + 6 * 160px = 1008px
-   ==================================================================== */
 :root {
-  --section-h: 160px;   /* fixed height of EVERY section */
   --pad-y: 24px;        /* vertical padding of the .tl wrapper */
-  --sections: 6;        /* 5 pipeline steps + 1 bonus */
-  --regular: 5;         /* numbered steps (the bonus is not counted) */
+  --section-min-h: 160px; /* desktop row-layout minimum section height */
 }
 
 body {
@@ -49,20 +38,16 @@ body {
   flex-shrink: 0;
   position: relative;
   margin-right: 1.5rem;
-
-  /* exact, deterministic height: one full stack of sections */
-  height: calc(var(--section-h) * var(--sections));
+  /* height set by JS to match the rendered height of .steps-col */
 }
 
 .track-bg {
   position: absolute;
   top: 0;
-  /* solid track spans only the numbered steps (to the centre of step 5);
-     the bonus segment beyond it is drawn dotted by .track-bonus */
-  height: calc(var(--section-h) * (var(--regular) - 0.5));
   left: 50%;
   transform: translateX(-50%);
   width: 2px;
+  height: 0; /* set by JS */
 
   background: linear-gradient(
     to bottom,
@@ -92,8 +77,8 @@ body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  top: calc((var(--regular) - 0.5) * var(--section-h));
-  height: var(--section-h);
+  top: 0;     /* set by JS */
+  height: 0;  /* set by JS */
   width: 0;
   border-left: 2px dotted rgba(207, 231, 216, 0.3);
   transition: border-color 0.25s ease;
@@ -116,7 +101,7 @@ body {
   /* inactive (unvisited) look */
   background: #0b0f0e;
   border: 1.5px solid rgba(125, 255, 178, 0.4);
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: top 0.18s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .node.active {
@@ -127,60 +112,24 @@ body {
     0 0 16px rgba(0, 255, 136, 0.25);
 }
 
-/* step titles are always visible now, so the node-side preview is hidden */
-.node-label {
-  display: none;
-  position: absolute;
-  left: 40px;
-  top: 50%;
-  transform: translateY(-50%);
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgb(125, 255, 178);
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-}
+.node-label { display: none; }
 
-/* once visited, the real section title takes over - hide the preview */
-.node.active .node-label {
-  opacity: 0;
-}
-
-/* ===== HANDLE ===== */
-.handle {
-  position: absolute;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: none;   /* the latest node uses the normal "visited" style - no special handle */
-  background: #0b0f0e;
-  border: 1px solid #7dffb2;
-  cursor: default;
-  z-index: 10;
-  top: 0;
-  user-select: none;
-  pointer-events: none;
-
-  box-shadow: 0 0 10px rgba(0, 255, 136, 0.15);
-  transition: top 0.18s ease, box-shadow 0.2s ease;
-}
+/* ===== HANDLE (unused visually, kept for compatibility) ===== */
+.handle { display: none; }
 
 /* ===== SECTIONS ===== */
 .steps-col {
   flex: 1;
+  min-width: 0; /* allow text to wrap instead of overflowing the flex item */
 }
 
-/* each section: FIXED height, content vertically centered */
+/* each section: content drives the height; min-height keeps desktop spacing */
 .step {
-  height: var(--section-h);
+  min-height: var(--section-min-h);
   display: flex;
   gap: 1.25rem;
   align-items: center;
+  padding: 14px 0;
 
   opacity: 0.3;                       /* unvisited: visible but dimmed */
   transition: opacity 0.25s ease;
@@ -193,7 +142,7 @@ body {
 /* ===== IMAGE PANELS ===== */
 .step-img {
   width: 170px;
-  height: calc(170px * 98 / 130);   /* match the SVG 130:98 aspect ratio — no letterbox bars */
+  aspect-ratio: 130 / 98;             /* matches the inline SVG viewBox, no letterbox bars */
   flex-shrink: 0;
   border-radius: 6px;
   background: transparent;
@@ -212,7 +161,10 @@ body {
 }
 
 /* ===== TEXT ===== */
-.step-text { flex: 1; }
+.step-text {
+  flex: 1;
+  min-width: 0;
+}
 
 .step-num {
   font-size: 11px;
@@ -237,6 +189,7 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.12);
+  overflow-wrap: break-word;
 }
 
 .step-desc {
@@ -244,6 +197,80 @@ body {
   color: #cfe7d8;
   line-height: 1.7;
   letter-spacing: 0.04em;
+  overflow-wrap: break-word;
+}
+
+/* ====================================================================
+   RESPONSIVE: tablet / phone - stack image above text
+   --------------------------------------------------------------------
+   NOTE: these are NOT @media queries. The component sits inside an
+   iframe whose own rendered width can be narrower than the actual
+   browser window (e.g. pinned to an article's text-column width), so
+   a CSS media query on the iframe's own viewport would trigger at the
+   wrong moment - or always. Instead, JS reads the real browser
+   viewport width (window.parent.innerWidth, since this is a
+   same-origin embed) and toggles the classes below. See
+   applyBreakpoint() in the script.
+   ==================================================================== */
+.tl.bp-tablet {
+  padding: var(--pad-y) 1.1rem;
+}
+
+.tl.bp-tablet .track-col {
+  width: 26px;
+  margin-right: 1rem;
+}
+
+.tl.bp-tablet .step {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.9rem;
+  min-height: 0;          /* let content height decide */
+  padding: 18px 0;
+}
+
+.tl.bp-tablet .step-img {
+  width: 150px;
+}
+
+.tl.bp-tablet .step-title {
+  font-size: 14px;
+}
+
+.tl.bp-tablet .step-desc {
+  font-size: 12.5px;
+}
+
+.tl.bp-phone {
+  padding: var(--pad-y) 0.85rem;
+}
+
+.tl.bp-phone .track-col {
+  width: 20px;
+  margin-right: 0.75rem;
+}
+
+.tl.bp-phone .step {
+  gap: 0.75rem;
+  padding: 16px 0;
+}
+
+.tl.bp-phone .step-img {
+  width: 120px;
+}
+
+.tl.bp-phone .step-num {
+  font-size: 10px;
+}
+
+.tl.bp-phone .step-title {
+  font-size: 13px;
+  letter-spacing: 0.10em;
+}
+
+.tl.bp-phone .step-desc {
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>
 </head>
@@ -251,10 +278,10 @@ body {
 <div class="tl">
   <!-- vertical track -->
   <div class="track-col" id="track-col">
-    <div class="track-bg"></div>
+    <div class="track-bg" id="track-bg"></div>
     <div class="track-fill" id="track-fill"></div>
     <div class="track-bonus" id="track-bonus"></div>
-    <!-- nodes + handle injected by JS -->
+    <!-- nodes injected by JS -->
     <div class="handle" id="handle"></div>
   </div>
 
@@ -394,23 +421,16 @@ const steps = [
   { label: "Loop closure",     title: "Loop closure",         desc: "Recognising a previously seen place adds a constraint that corrects accumulated drift, bringing the whole map back into agreement. This keeps SLAM globally consistent over long trajectories.", bonus: true },
 ];
 
-/* ---- geometry: read the fixed section height straight from CSS ---- */
-const SECTION_H = parseFloat(
-  getComputedStyle(document.documentElement).getPropertyValue('--section-h')
-);
 const N = steps.length;
 const REGULAR = steps.filter(s => !s.bonus).length;   // numbered steps (bonus excluded)
 
-/* center of section i (relative to the track-col / steps-col top) */
-const nodeCenter = i => (i + 0.5) * SECTION_H;
-
 const stepsCol   = document.getElementById('steps-col');
 const trackCol   = document.getElementById('track-col');
+const trackBg    = document.getElementById('track-bg');
 const trackFill  = document.getElementById('track-fill');
 const trackBonus = document.getElementById('track-bonus');
-const handle     = document.getElementById('handle');
 
-/* build the fixed-height sections */
+/* build the fixed-content sections (height is no longer fixed, content decides it) */
 stepsCol.innerHTML = steps.map((s, i) => `
   <div class="step" id="step-${i}">
     <div class="step-img">${svgs[i]}</div>
@@ -422,34 +442,92 @@ stepsCol.innerHTML = steps.map((s, i) => `
   </div>
 `).join('');
 
-/* build the always-visible nodes, perfectly aligned to section centers */
+/* build the always-visible nodes (positioned by JS, see layout()) */
 const nodes = [];
 for (let i = 0; i < N; i++) {
   const node = document.createElement('div');
   node.className = 'node';
-  node.style.top = nodeCenter(i) + 'px';
-
-  const label = document.createElement('div');
-  label.className = 'node-label';
-  label.textContent = steps[i].title;
-  node.appendChild(label);
-
-  trackCol.insertBefore(node, handle);
+  trackCol.insertBefore(node, document.getElementById('handle'));
   nodes.push(node);
 }
 
-let revealed = 1; // number of visited sections (1..N)
+let revealed = 1;   // number of visited sections (1..N)
+let centers = [];   // vertical center (px, relative to track-col top) of each step, recomputed on layout
+
+const tlEl = document.querySelector('.tl');
+const TABLET_BP = 1000;  // px - real browser viewport width, not the iframe's own width
+const PHONE_BP  = 480;
+
+/* guards the same-origin assumption: if a future host ever embeds this
+   cross-origin, window.parent.innerWidth throws - fall back gracefully
+   to the iframe's own width rather than breaking the page. */
+function inIframeSafe() {
+  if (!window.frameElement) return false;
+  try { void window.parent.innerWidth; return true; }
+  catch (e) { return false; }
+}
+
+function getViewportWidth() {
+  if (inIframeSafe()) {
+    return window.parent.innerWidth || window.innerWidth;
+  }
+  return window.innerWidth;
+}
+
+function applyBreakpoint() {
+  const vw = getViewportWidth();
+  tlEl.classList.toggle('bp-tablet', vw <= TABLET_BP);
+  tlEl.classList.toggle('bp-phone', vw <= PHONE_BP);
+}
+
+/* ----------------------------------------------------------------
+   measure where each step actually rendered, and align the track
+   (dots, line, fill) to those real positions - works for both the
+   desktop row layout and the stacked mobile layout, at any text
+   length, since nothing here assumes a fixed section height.
+   ---------------------------------------------------------------- */
+function measureCenters() {
+  const trackTop = trackCol.getBoundingClientRect().top;
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const r = document.getElementById('step-' + i).getBoundingClientRect();
+    out.push(r.top - trackTop + r.height / 2);
+  }
+  return out;
+}
+
+function layout() {
+  applyBreakpoint();
+  centers = measureCenters();
+
+  for (let i = 0; i < N; i++) {
+    nodes[i].style.top = centers[i] + 'px';
+  }
+
+  const bgBottom = centers[REGULAR - 1];
+  trackBg.style.top = '0px';
+  trackBg.style.height = Math.max(0, bgBottom) + 'px';
+
+  trackBonus.style.top = bgBottom + 'px';
+  trackBonus.style.height = Math.max(0, centers[N - 1] - bgBottom) + 'px';
+
+  const totalH = stepsCol.getBoundingClientRect().height;
+  trackCol.style.height = totalH + 'px';
+
+  reveal(revealed);
+  reportHeight();
+}
 
 function reveal(count) {
   count = Math.max(1, Math.min(N, count));
   revealed = count;
 
-  // green solid fill only spans the numbered steps; the bonus link stays dotted
-  const y = nodeCenter(Math.min(count, REGULAR) - 1);
-
-  handle.style.top    = y + 'px';
-  trackFill.style.height = y + 'px';
-  trackBonus.classList.toggle('active', count >= N);   // dotted link turns green once the bonus is reached
+  if (centers.length === N) {
+    const idx = Math.min(count, REGULAR) - 1;
+    const y = centers[idx];
+    trackFill.style.height = Math.max(0, y) + 'px';
+  }
+  trackBonus.classList.toggle('active', count >= N);
 
   for (let i = 0; i < N; i++) {
     nodes[i].classList.toggle('active', i < count);
@@ -478,9 +556,39 @@ function countFromScroll() {
 
 function onScroll() { reveal(countFromScroll()); }
 
+/* ---- self-sizing iframe ----
+   The host no longer needs to hardcode a pixel height for this iframe:
+   since the embed is same-origin, the component sets its own iframe's
+   height to match its real rendered content, on load and whenever the
+   layout changes (font load, orientation change, breakpoint switch). */
+function reportHeight() {
+  if (!inIframe) return;
+  const total = Math.ceil(document.body.getBoundingClientRect().height);
+  if (total > 0) window.frameElement.style.height = total + 'px';
+}
+
+let resizeTimer = null;
+function scheduleLayout() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(layout, 50);
+}
+
 if (inIframe) {
   window.parent.addEventListener('scroll', onScroll, { passive: true });
-  window.parent.addEventListener('resize', onScroll, { passive: true });
+  window.parent.addEventListener('resize', scheduleLayout, { passive: true });
+}
+window.addEventListener('resize', scheduleLayout, { passive: true });
+
+/* re-measure automatically whenever the rendered size of the content
+   changes (covers webfont swap, orientation change, breakpoint switch) */
+if (window.ResizeObserver) {
+  new ResizeObserver(scheduleLayout).observe(stepsCol);
+} else {
+  window.addEventListener('load', layout);
+}
+
+layout();
+if (inIframe) {
   onScroll();
 } else {
   reveal(N);   // opened standalone - just show everything
